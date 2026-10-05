@@ -187,6 +187,12 @@
   .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 14px; align-items: start; }
   .chart-grid .chart-card { padding: 14px 16px; }
   .mix-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .metric-pick { display: flex; align-items: center; gap: 8px; }
+  .metric-pick label { margin: 0; }
+  .metric-pick .ctl { min-width: 220px; }
+  .mb-modal { position: fixed; inset: 0; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.55); }
+  .mb-modal-inner { width: min(1500px, 100%); max-height: 100%; overflow: auto; }
+  .mb-modal .chart-card { padding: 18px 22px; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .seg button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer; }
   .seg button.on { background: var(--ink); color: var(--bg); }
@@ -360,6 +366,11 @@
       <div id="mb-objective-wrap"><label for="mb-objective">Meta objective</label><select class="ctl" id="mb-objective"></select></div>
       <div><label for="mb-industry">Industry</label><select class="ctl" id="mb-industry"></select></div>
       <div><label for="mb-model">Business model</label><select class="ctl" id="mb-model"></select></div>
+      <div><label for="mb-scope">Accounts</label>
+        <select class="ctl" id="mb-scope">
+          <option value="all" selected>All accounts (incl. unlabelled)</option>
+          <option value="ready">Benchmark-ready only</option>
+        </select></div>
       <div><label>Markets</label><div class="ms-wrap" id="mb-markets"></div></div>
       <div><label for="mb-period">Period</label>
         <select class="ctl" id="mb-period">
@@ -380,12 +391,14 @@
           <div class="seg" id="mb-mix-mode"><button type="button" data-mode="gbp">£ spend</button><button type="button" data-mode="share">% share</button></div>
         </div>
         <div id="mb-mix-main"></div>
-        <div class="chart-grid" id="mb-mix-markets" style="margin-top:14px"></div>
-        <h3 class="sec"><strong>Performance</strong> <em>by market</em></h3>
-        <p class="hint" id="mb-perf-note" style="margin:-4px 0 0"></p>
       </div>
-      <div class="legend" id="mb-legend" style="margin:14px 0 10px"></div>
-      <div class="chart-grid" id="mb-charts"></div>
+      <h3 class="sec"><strong>Performance</strong> <em>by market</em></h3>
+      <p class="hint" id="mb-perf-note" style="margin:-4px 0 0"></p>
+      <div class="mix-bar" style="margin-top:10px">
+        <div class="metric-pick"><label for="mb-metric">Metric</label><select class="ctl" id="mb-metric"></select></div>
+        <div class="legend" id="mb-legend"></div>
+      </div>
+      <div id="mb-charts"></div>
       <h3 class="sec"><strong>Period</strong> <em>summary</em></h3>
       <div class="table-wrap"><table id="mb-table"></table></div>
       <div id="mb-mix-summary" style="display:none">
@@ -711,10 +724,12 @@ async function loadMetaAccounts(){
   });
 }
 
-function currencyOf(id){ return (S.byId[id]?.platform === 'google' ? GD.byId[id]?.currency : META.byId[id]?.currency) || ''; }
+// Platform of an ID: the lookup sheet if it's there, otherwise whichever source knows it (Google CSV or Meta token)
+function idPlatform(id){ return S.byId[id]?.platform || (GD.byId[id] && !META.byId[id] ? 'google' : 'meta'); }
+function currencyOf(id){ return (idPlatform(id) === 'google' ? GD.byId[id]?.currency : META.byId[id]?.currency) || ''; }
 function rateFor(id){ const c = currencyOf(id); return c ? S.fx[c.toUpperCase()] : undefined; }
 function accessible(id){
-  if (S.byId[id]?.platform === 'google') return !!GD.byId[id];
+  if (idPlatform(id) === 'google') return !!GD.byId[id];
   const m = META.byId[id]; return !!(m && !m.error);
 }
 function acctName(a){ return a.label || META.byId[a.id]?.name || ('act_' + a.id); }
@@ -1629,7 +1644,7 @@ function gSeries(ch){ if (ch === 'DISCOVERY') return 'DEMAND_GEN'; return ['SEAR
 function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
 const MB = { markets: new Set(), userPicked: false, hideAxis: {}, showTable: {}, metaKey: null };
 const MB_COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)'];
-const MB_MAX_MARKETS = 7;
+const MB_MAX_MARKETS = 12;  // 7 colours; markets 8-12 reuse them as dashed lines
 
 function mbPeriod(){ const p = benchPeriod(Number($('mb-period').value)); return { ...p, months: monthsBetween(p.since, p.until) }; }
 function mbChannel(){ return $('mb-channel').value; }
@@ -1649,11 +1664,30 @@ const MB_CH_LABEL = { META:'Meta', SEARCH:'Search', PERFORMANCE_MAX:'Performance
 const MB_CH_COLOR = { META:'var(--s1)', SEARCH:'var(--s4)', PERFORMANCE_MAX:'var(--s2)', SHOPPING:'var(--s3)', VIDEO:'var(--s6)', DEMAND_GEN:'var(--s5)', G_OTHER:'var(--s7)', OTHER:'var(--faint)' };
 function fmtK(v){ if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return a >= 1e6 ? '£' + (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'm' : a >= 1e3 ? '£' + (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : '£' + Math.round(v); }
 
-// Accounts in scope: benchmark-ready, right platform, matching industry / model
+// Accounts in scope before the industry / model filters.
+//   ready: benchmark-ready rows of the lookup sheet only
+//   all:   also lookup rows that are incomplete (unless include_in_benchmarks = No), plus every account the
+//          Meta token or the Google CSV can see that isn't in the sheet. Unlabelled accounts have no industry,
+//          so they drop out as soon as an industry or business model is picked.
+//          Grouping: the sheet's client name, else the Meta business name, else the account itself.
+function mbPool(plat){
+  const want = p => plat === 'all' ? (p === 'meta' || p === 'google') : p === plat;
+  const ok = id => accessible(id) && rateFor(id) != null;
+  const out = S.accounts.filter(a => S.byId[a.id] === a && want(a.platform) && benchEligible(a));
+  if ($('mb-scope').value !== 'all') return out;
+  const seen = new Set(out.map(a => a.id));
+  const unit = (id, plat) => (plat === 'meta' && META.byId[id]?.business) ? 'biz:' + META.byId[id].business : 'acct:' + id;
+  S.accounts.forEach(a => {
+    if (S.byId[a.id] !== a || seen.has(a.id) || !want(a.platform) || /^n/i.test(a.includeRaw) || !ok(a.id)) return;
+    seen.add(a.id); out.push({ ...a, client: a.client || unit(a.id, a.platform), unlabelled: !a.client || !a.industry });
+  });
+  if (want('meta')) META.listed.forEach(id => { if (!seen.has(id) && !S.byId[id] && ok(id)) { seen.add(id); out.push({ id, platform: 'meta', client: unit(id, 'meta'), industry: '', model: '', unlabelled: true }); } });
+  if (want('google')) Object.keys(GD.byId).forEach(id => { if (!seen.has(id) && !S.byId[id] && ok(id)) { seen.add(id); out.push({ id, platform: 'google', client: unit(id, 'google'), industry: '', model: '', unlabelled: true }); } });
+  return out;
+}
 function mbAccounts(){
-  const ind = $('mb-industry').value, model = $('mb-model').value, plat = mbPlat();
-  return S.accounts.filter(a => S.byId[a.id] === a && (plat === 'all' ? (a.platform === 'meta' || a.platform === 'google') : a.platform === plat) && benchEligible(a)
-    && (!ind || a.industry === ind) && (!model || a.model === model));
+  const ind = $('mb-industry').value, model = $('mb-model').value;
+  return mbPool(mbPlat()).filter(a => (!ind || a.industry === ind) && (!model || a.model === model));
 }
 function mbRowOk(a, r){
   const ch = mbChannel();
@@ -1687,7 +1721,7 @@ function mbMarketOptions(){
 function mbBuildMarkets(){
   const opts = mbMarketOptions();
   [...MB.markets].forEach(m => { if (!opts.includes(m)) MB.markets.delete(m); });
-  if (!MB.userPicked || !MB.markets.size) { MB.markets.clear(); opts.slice(0, 4).forEach(m => MB.markets.add(m)); }
+  if (!MB.userPicked || !MB.markets.size) { MB.markets.clear(); opts.slice(0, MB_MAX_MARKETS).forEach(m => MB.markets.add(m)); }
   const wrap = $('mb-markets'); wrap.innerHTML = '';
   const label = () => { const s = opts.filter(o => MB.markets.has(o)); return s.length ? (s.length <= 3 ? s.join(' + ') : `${s.length} markets`) : 'Pick markets'; };
   const tr = document.createElement('button'); tr.type = 'button'; tr.className = 'ms-trigger'; tr.textContent = label();
@@ -1728,8 +1762,8 @@ function mbBuildFilters(){
 async function mbLoadMeta(force){
   if (!TOKEN) { mbStatus('No Meta token. Add one on the Setup tab.', true); return; }
   const { since, until } = mbPeriod();
-  const ids = S.accounts.filter(a => a.platform === 'meta' && benchEligible(a)).map(a => a.id);
-  if (!ids.length) { mbStatus('No benchmark-ready Meta accounts. Check the Setup tab.', true); return; }
+  const ids = mbPool('meta').map(a => a.id);
+  if (!ids.length) { mbStatus('No Meta accounts available. Check the token and the Setup tab.', true); return; }
   $('mb-load').disabled = true;
   await fetchMetaInsights(ids, since, until, force, (d, t) => mbStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching Meta data: ${d} of ${t} accounts…`));
   $('mb-load').disabled = false;
@@ -1738,12 +1772,13 @@ async function mbLoadMeta(force){
 }
 function mbStatus(html, err){ const el = $('mb-status'); el.style.display = 'block'; el.className = 'status' + (err ? ' err' : ''); el.innerHTML = html; }
 $('mb-load').addEventListener('click', () => mbLoadMeta($('mb-load').textContent.startsWith('Refresh')));
-['mb-channel','mb-objective','mb-industry','mb-model','mb-period'].forEach(id => $(id).addEventListener('change', () => {
+['mb-channel','mb-objective','mb-industry','mb-model','mb-period','mb-scope'].forEach(id => $(id).addEventListener('change', () => {
   if (id === 'mb-objective') MB.objUser = true;
   if (id === 'mb-channel' || id === 'mb-industry' || id === 'mb-model') MB.userPicked = MB.userPicked && id !== 'mb-channel';
   renderOverview(true);
 }));
 $('mb-axes').addEventListener('change', e => { (MB.chartKeys || BMETRICS.map(m => m.k)).forEach(k => MB.hideAxis[k] = !e.target.checked); renderOverview(false); });
+$('mb-metric').addEventListener('change', e => { MB.metric = e.target.value; renderOverview(false); });
 $('mb-mix-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; MB.mixShare = b.dataset.mode === 'share'; renderOverview(false); });
 
 function renderOverview(rebuild = true){
@@ -1751,7 +1786,8 @@ function renderOverview(rebuild = true){
   if (rebuild) mbBuildFilters();
   const plat = mbPlat(), data = mbData();
   $('mb-load').style.display = plat === 'google' ? 'none' : '';
-  $('mb-load').textContent = mbMetaData() ? 'Refresh Meta data' : 'Load Meta data';
+  const md = mbMetaData(), pend = md ? mbPool('meta').filter(a => !md[a.id]).length : 0;
+  $('mb-load').textContent = !md ? 'Load Meta data' : pend ? `Load ${pend} more Meta accounts` : 'Refresh Meta data';
   if (!data) {
     $('mb-body').style.display = 'none'; $('mb-meta').innerHTML = '';
     mbStatus(plat === 'all' ? 'No data yet. Choose the Google data CSV on the Setup tab and/or click <strong>Load Meta data</strong>.' : plat === 'meta' ? 'Click <strong>Load Meta data</strong> to fetch every benchmark-ready Meta account for this period. The first load can take a few minutes.'
@@ -1764,12 +1800,16 @@ function renderOverview(rebuild = true){
   const { months } = mbPeriod();
   $('mb-status').style.display = 'none'; $('mb-body').style.display = 'block';
   const chLabel = $('mb-channel').selectedOptions[0].textContent;
-  const nClients = new Set(mbAccounts().map(a => a.client)).size;
+  // Count only accounts with data in the period
+  const withData = mbAccounts().filter(a => (mbRowsFor(a) || []).some(r => months.includes(r.month) && r.spend > 0));
+  const nClients = new Set(withData.filter(a => !a.client.startsWith('acct:') && !a.client.startsWith('biz:')).map(a => a.client)).size;
+  const nUnl = new Set(withData.filter(a => a.client.startsWith('acct:') || a.client.startsWith('biz:')).map(a => a.client)).size;
   $('mb-meta').innerHTML = [
     `<span class="pill">${esc(chLabel)}${plat === 'meta' && $('mb-objective').value ? ' · ' + esc(OBJ_LABEL[$('mb-objective').value] || $('mb-objective').value) : ''}</span>`,
     `<span class="pill">${esc($('mb-industry').value || 'All industries')}${$('mb-model').value ? ' · ' + esc($('mb-model').value) : ''}</span>`,
     `<span class="pill">${months[0]} → ${months[months.length - 1]}</span>`,
-    `<span class="pill">${nClients} client${nClients === 1 ? '' : 's'} in scope · GBP</span>`,
+    `<span class="pill">${nClients} labelled client${nClients === 1 ? '' : 's'}${nUnl ? ` + ${nUnl} unlabelled` : ''} · ${withData.length} accounts with spend · GBP</span>`,
+    pend && plat !== 'google' ? `<span class="pill" style="color:var(--warn)">${pend} Meta accounts not fetched yet (or errored)</span>` : '',
     `<span class="pill">${plat === 'meta' ? '7-day click + 1-day view' : plat === 'all' ? 'Meta 7d click + 1d view · Google as reported' : 'Purchase conversions as reported'}</span>`,
     plat === 'all' && !mbMetaData() ? `<span class="pill" style="color:var(--warn)">Meta not loaded: Google only until you click Load Meta data</span>` : '',
     plat === 'all' && !GD.data ? `<span class="pill" style="color:var(--warn)">No Google CSV loaded: Meta only</span>` : '',
@@ -1777,9 +1817,10 @@ function renderOverview(rebuild = true){
   // Colour follows the market, not its position: a market keeps its colour while it stays selected
   MB.colorMap = MB.colorMap || {};
   Object.keys(MB.colorMap).forEach(k => { if (!markets.includes(k)) delete MB.colorMap[k]; });
-  markets.forEach(mk => { if (MB.colorMap[mk] == null) { const used = Object.values(MB.colorMap); MB.colorMap[mk] = [0,1,2,3,4,5,6].find(i => !used.includes(i)); } });
-  const color = mk => MB_COLORS[MB.colorMap[mk]];
-  $('mb-legend').innerHTML = markets.length ? markets.map(m => `<span><i style="border-color:${color(m)}"></i>${flagFor(m)} ${esc(m)}</span>`).join('')
+  markets.forEach(mk => { if (MB.colorMap[mk] == null) { const used = Object.values(MB.colorMap); MB.colorMap[mk] = [...Array(MB_MAX_MARKETS).keys()].find(i => !used.includes(i)); } });
+  const color = mk => MB_COLORS[MB.colorMap[mk] % MB_COLORS.length];
+  const dashed = mk => MB.colorMap[mk] >= MB_COLORS.length;
+  $('mb-legend').innerHTML = markets.length ? markets.map(m => `<span><i style="border-color:${color(m)};${dashed(m) ? 'border-top-style:dashed' : ''}"></i>${flagFor(m)} ${esc(m)}</span>`).join('')
                                             : '<span>Pick at least one market.</span>';
 
   // series[metric][market] = [{month, v, n}]
@@ -1795,19 +1836,22 @@ function renderOverview(rebuild = true){
 
   const mix = mbIsMix();
   $('mb-mix').style.display = mix ? '' : 'none'; $('mb-mix-summary').style.display = mix ? '' : 'none';
-  MB.chartKeys = BMETRICS.map(m => m.k);
+  MB.chartKeys = ['perf']; MB.draw = {};
+  $('mb-perf-note').textContent = '';
   if (mix) renderMix(markets, months);
 
-  const box = $('mb-charts');
-  box.innerHTML = BMETRICS.map(m => `<div class="chart-card" id="mbc-${m.k}">
-      <div class="chart-title"><span class="t">${esc(mLabelFor(m, plat))}</span>${m.lower ? '<span class="hint">lower is better</span>' : ''}
-        <span class="tools"><button class="mini-btn" data-axis="${m.k}">${MB.hideAxis[m.k] ? 'Show axis' : 'Hide axis'}</button>
-        <button class="mini-btn" data-table="${m.k}">${MB.showTable[m.k] ? 'Chart' : 'Table'}</button></span></div>
-      <div class="mbc-body"></div><div class="tooltip"></div></div>`).join('');
-  BMETRICS.forEach(m => drawMbChart(m, series[m.k], markets, months, color, plat));
-  box.querySelectorAll('[data-axis]').forEach(b => b.addEventListener('click', () => { MB.hideAxis[b.dataset.axis] = !MB.hideAxis[b.dataset.axis]; renderOverview(false); }));
-  box.querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => { MB.showTable[b.dataset.table] = !MB.showTable[b.dataset.table]; renderOverview(false); }));
+  // One line chart, every selected market as a line; metric picked from the dropdown
+  const msel = $('mb-metric');
+  if (!BMETRICS.some(m => m.k === MB.metric)) MB.metric = 'cpm';
+  msel.innerHTML = BMETRICS.map(m => `<option value="${m.k}">${esc(mLabelFor(m, plat))}${m.lower ? ' (lower is better)' : ''}</option>`).join('');
+  msel.value = MB.metric;
+  const m = BMETRICS.find(x => x.k === MB.metric);
+  $('mb-charts').innerHTML = mbCard('perf', esc(mLabelFor(m, plat)), m.lower ? 'lower is better' : 'by market');
+  MB.draw.perf = (card, H) => drawMbChart(m, series[m.k], markets, months, color, dashed, plat, card, H);
+  MB.draw.perf($('mbc-perf'), 300);
+  mbWireCards();
   $('mb-axes').checked = !MB.chartKeys.every(k => MB.hideAxis[k]);
+  if (MB.expanded) mbOpenModal(MB.expanded);
 
   // Period summary: market × metric across the whole period
   let h = `<thead><tr><th>Market</th><th data-r>Clients</th>${BMETRICS.map(m => `<th data-r>${esc(mLabelFor(m, plat))}</th>`).join('')}</tr></thead><tbody>`;
@@ -1817,7 +1861,7 @@ function renderOverview(rebuild = true){
     h += `<tr><td>${flagFor(mk)} ${esc(mk)}</td><td data-r>${units.filter(u => u.spend >= CONFIG.MIN_SPEND_GBP).length}</td>${cells}</tr>`;
   });
   $('mb-table').innerHTML = h + '</tbody>';
-  $('mb-notes').textContent = `Each point is the simple average of qualifying clients in that market and month (each client counts once; a client needs £${fmt(CONFIG.MIN_SPEND_GBP_MONTH)}+ spend in the month, plus ${CONFIG.MIN_PURCHASES_MONTH}+ purchases for purchase metrics). A point only shows when ${CONFIG.MIN_CLIENTS}+ clients qualify; gaps mean too few. Markets use the country ads were delivered in. The period summary uses the period minimums (£${fmt(CONFIG.MIN_SPEND_GBP)} spend, ${CONFIG.MIN_PURCHASES} purchases). No figure is a single client's result.`;
+  $('mb-notes').textContent = `Each point is the simple average of qualifying clients in that market and month (each client counts once; a client needs £${fmt(CONFIG.MIN_SPEND_GBP_MONTH)}+ spend in the month, plus ${CONFIG.MIN_PURCHASES_MONTH}+ purchases for purchase metrics). A point only shows when ${CONFIG.MIN_CLIENTS}+ clients qualify; gaps mean too few. Markets use the country ads were delivered in. The period summary uses the period minimums (£${fmt(CONFIG.MIN_SPEND_GBP)} spend, ${CONFIG.MIN_PURCHASES} purchases). No figure is a single client's result.` + ($('mb-scope').value === 'all' ? ' Accounts with no client name in the lookup sheet are grouped by Meta business name where available, otherwise each account counts as its own client, so one unlabelled client with several accounts can count more than once.' : '');
 }
 function mLabelFor(m, plat){ return ((plat === 'google' || plat === 'all') && GOOGLE_LABELS[m.k]) || m.l; }
 
@@ -1859,21 +1903,19 @@ function mbMergeCells(list){
 function renderMix(markets, months){
   const raw = mbMixData(markets, months);
   const totalBars = months.map((_, i) => mbSafeBar(mbMergeCells(markets.map(mk => raw[mk][i]))));
-  const mkBars = {}; markets.forEach(mk => mkBars[mk] = months.map((_, i) => mbSafeBar(raw[mk][i])));
-  const present = new Set(); [totalBars, ...Object.values(mkBars)].forEach(bs => bs.forEach(b => Object.keys(b.seg).forEach(c => present.add(c))));
+  const present = new Set(); totalBars.forEach(b => Object.keys(b.seg).forEach(c => present.add(c)));
+  markets.forEach(mk => Object.keys(mbSafeBar(mbMergeCells(raw[mk])).seg).forEach(c => present.add(c)));  // channels in the mix table
   const chans = [...MB_CHANNELS, 'OTHER'].filter(c => present.has(c));
   $('mb-mix-legend').innerHTML = chans.length ? chans.map(c => `<span><i class="sw" style="background:${MB_CH_COLOR[c]}"></i>${esc(MB_CH_LABEL[c])}</span>`).join('') : '';
   $('mb-mix-mode').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'share') === !!MB.mixShare));
   const title = markets.length === 1 ? `${flagFor(markets[0])} ${esc(markets[0])}` : `All selected markets (${markets.length})`;
-  $('mb-mix-main').innerHTML = mixCard('mix_total', title, true);
-  $('mb-mix-markets').innerHTML = markets.length > 1 ? markets.map((mk, j) => mixCard('mix_' + j, `${flagFor(mk)} ${esc(mk)}`, false)).join('') : '';
-  MB.chartKeys.push('mix_total'); drawStack('mix_total', totalBars, months, chans, 260);
-  if (markets.length > 1) markets.forEach((mk, j) => { MB.chartKeys.push('mix_' + j); drawStack('mix_' + j, mkBars[mk], months, chans, 190); });
-  $('mb-mix').querySelectorAll('[data-axis]').forEach(b => b.addEventListener('click', () => { MB.hideAxis[b.dataset.axis] = !MB.hideAxis[b.dataset.axis]; renderOverview(false); }));
-  $('mb-mix').querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => { MB.showTable[b.dataset.table] = !MB.showTable[b.dataset.table]; renderOverview(false); }));
+  $('mb-mix-main').innerHTML = mbCard('mix', title, MB.mixShare ? 'share of spend' : 'spend, GBP');
+  MB.chartKeys.push('mix');
+  MB.draw.mix = (card, H) => drawStack('mix', totalBars, months, chans, card, H);
+  MB.draw.mix($('mbc-mix'), 280);
   $('mb-perf-note').textContent = mbChannel() === 'ALL'
-    ? 'Below, each client\'s Meta and Google activity is pooled per market before averaging. Meta CTR / CPC use link clicks; Google uses all clicks.'
-    : 'Below, each client\'s Google campaign types are pooled per market before averaging.';
+    ? 'Each client\'s Meta and Google activity is pooled per market before averaging. Meta CTR / CPC use link clicks; Google uses all clicks.'
+    : 'Each client\'s Google campaign types are pooled per market before averaging.';
 
   // Period channel mix: share of spend per market (and all selected markets)
   const rowsFor = (label, cellsList) => {
@@ -1886,15 +1928,57 @@ function renderMix(markets, months){
   if (markets.length > 1) h += rowsFor('<strong>All selected</strong>', markets.flatMap(mk => raw[mk]));
   $('mb-mix-table').innerHTML = chans.length ? h + '</tbody>' : '<tbody><tr><td class="hint">Not enough clients to show a channel mix.</td></tr></tbody>';
 }
-function mixCard(key, title, big){
-  return `<div class="chart-card" id="mbc-${key}" ${big ? '' : ''}>
-    <div class="chart-title"><span class="t">${title}</span><span class="hint">${MB.mixShare ? 'share of spend' : 'spend, GBP'}</span>
+// ── Chart cards: Hide axis / Table / Expand ─────────────────────────
+function mbCard(key, title, hint, inModal){
+  return `<div class="chart-card" ${inModal ? '' : `id="mbc-${key}"`}>
+    <div class="chart-title"><span class="t">${title}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ''}
       <span class="tools"><button class="mini-btn" data-axis="${key}">${MB.hideAxis[key] ? 'Show axis' : 'Hide axis'}</button>
-      <button class="mini-btn" data-table="${key}">${MB.showTable[key] ? 'Chart' : 'Table'}</button></span></div>
+      <button class="mini-btn" data-table="${key}">${MB.showTable[key] ? 'Chart' : 'Table'}</button>
+      ${inModal ? '<button class="mini-btn" data-close>Close ✕</button>' : `<button class="mini-btn" data-expand="${key}">Expand ⤢</button>`}</span></div>
     <div class="mbc-body"></div><div class="tooltip"></div></div>`;
 }
-function drawStack(key, bars, months, chans, H){
-  const card = $('mbc-' + key), body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
+function mbWireCards(root = document.getElementById('view-overview')){
+  root.querySelectorAll('[data-axis]').forEach(b => b.onclick = () => { MB.hideAxis[b.dataset.axis] = !MB.hideAxis[b.dataset.axis]; renderOverview(false); });
+  root.querySelectorAll('[data-table]').forEach(b => b.onclick = () => { MB.showTable[b.dataset.table] = !MB.showTable[b.dataset.table]; renderOverview(false); });
+  root.querySelectorAll('[data-expand]').forEach(b => b.onclick = () => { MB.expanded = b.dataset.expand; mbOpenModal(MB.expanded); });
+}
+function mbOpenModal(key){
+  let ov = document.getElementById('mb-modal');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'mb-modal'; ov.className = 'mb-modal';
+    ov.addEventListener('click', e => { if (e.target === ov) mbCloseModal(); });
+    document.body.appendChild(ov);
+  }
+  const src = $('mbc-' + key); if (!src || !MB.draw[key]) { mbCloseModal(); return; }
+  const title = src.querySelector('.chart-title .t').innerHTML, hint = src.querySelector('.chart-title .hint')?.textContent || '';
+  const legend = key === 'mix' ? $('mb-mix-legend').innerHTML : $('mb-legend').innerHTML;
+  ov.innerHTML = `<div class="mb-modal-inner">${mbCard(key, title, hint, true)}</div>`;
+  const card = ov.querySelector('.chart-card');
+  card.querySelector('.mbc-body').insertAdjacentHTML('beforebegin', `<div class="legend" style="margin:2px 0 10px">${legend}</div>`);
+  ov.style.display = 'flex'; document.body.style.overflow = 'hidden';
+  MB.draw[key](card, Math.max(320, window.innerHeight - 200));
+  mbWireCards(ov);
+  card.querySelector('[data-close]').onclick = mbCloseModal;
+}
+function mbCloseModal(){ MB.expanded = null; const ov = document.getElementById('mb-modal'); if (ov) { ov.style.display = 'none'; ov.innerHTML = ''; } document.body.style.overflow = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && MB.expanded) mbCloseModal(); });
+
+// Every month gets a label; labels tilt when the slots get too narrow to fit them flat
+function mbXLabels(months, X, slot, H, Bm){
+  const tilt = slot < 50;
+  return months.map((mo, i) => tilt
+    ? `<text x="${X(i)}" y="${H - Bm + 14}" text-anchor="end" font-size="10.5" fill="var(--muted)" transform="rotate(-40 ${X(i)} ${H - Bm + 14})">${monthLabel(mo)}</text>`
+    : `<text x="${X(i)}" y="${H - Bm + 16}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${monthLabel(mo)}</text>`).join('');
+}
+function mbBottom(W, L, R, n){ return (W - L - R) / n < 50 ? 50 : 26; }
+function mbTip(card, tip, e, w){
+  const cr = card.getBoundingClientRect();
+  let x = e.clientX - cr.left + 14; if (x > cr.width - w) x = e.clientX - cr.left - w;
+  tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+}
+
+function drawStack(key, bars, months, chans, card, H){
+  const body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
   const hide = !!MB.hideAxis[key], share = !!MB.mixShare;
   const val = (b, c) => b.seg[c] ? (share ? 100 * b.seg[c].spend / b.total : b.seg[c].spend) : 0;
   const fmtV = v => share ? fmt(v, 0) + '%' : fmtK(v);
@@ -1908,16 +1992,16 @@ function drawStack(key, bars, months, chans, H){
     return;
   }
   if (!bars.some(b => !b.hidden)) { body.innerHTML = `<div class="status" style="padding:30px">Not enough clients to show a spend split here.</div>`; return; }
-  const W = Math.max(300, body.clientWidth || 460), L = hide ? 8 : 52, R = 8, T = 10, Bm = 26;
+  const W = Math.max(300, body.clientWidth || 460), L = hide ? 8 : 52, R = 8, T = 10, n = months.length, Bm = mbBottom(W, L, R, n);
   const maxV = share ? 100 : Math.max(...bars.map(b => b.total));
-  const step = share ? 25 : niceStep(maxV / 3), y1 = share ? 100 : Math.ceil(maxV / step) * step || 1;
-  const n = months.length, slot = (W - L - R) / n, bw = Math.min(46, slot * 0.68);
+  const step = share ? 25 : niceStep(maxV / 4), y1 = share ? 100 : Math.ceil(maxV / step) * step || 1;
+  const slot = (W - L - R) / n, bw = Math.min(56, slot * 0.68);
   const X = i => L + slot * i + slot / 2, Y = v => T + (H - T - Bm) * (1 - v / y1);
   let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Spend by channel per month">`;
   if (!hide) for (let v = 0; v <= y1 + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmtV(v)}</text>`;
   else svg += `<line x1="${L}" x2="${W - R}" y1="${H - Bm}" y2="${H - Bm}" stroke="var(--border)"/>`;
+  svg += mbXLabels(months, X, slot, H, Bm);
   months.forEach((mo, i) => {
-    if (n <= 6 || i % 2 === (n - 1) % 2) svg += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${monthLabel(mo)}</text>`;
     const b = bars[i]; if (b.hidden) return;
     let acc = 0;
     used.forEach(c => { const v = val(b, c); if (!v) return; const y0 = Y(acc), yT = Y(acc + v); acc += v;
@@ -1931,18 +2015,16 @@ function drawStack(key, bars, months, chans, H){
       tip.innerHTML = `<b>${monthLabel(months[+r.dataset.i])}</b>` + (b.hidden ? `<div class="row"><span>${b.n ? `Too few clients (${b.n})` : 'No spend'}</span></div>`
         : [...used].reverse().filter(c => b.seg[c]).map(c => `<div class="row"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${MB_CH_COLOR[c]};margin-right:6px"></i>${esc(MB_CH_LABEL[c])}</span><span>${hide ? '' : fmtK(b.seg[c].spend) + ' · '}${fmt(100 * b.seg[c].spend / b.total, 0)}%</span></div>`).join('')
           + `<div class="row"><span>Total · ${b.n} clients</span><span>${hide ? '' : fmtK(b.total)}</span></div>`);
-      const cr = card.getBoundingClientRect();
-      let x = e.clientX - cr.left + 14; if (x > cr.width - 230) x = e.clientX - cr.left - 230;
-      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+      mbTip(card, tip, e, 230);
     });
     r.addEventListener('mouseleave', () => tip.style.display = 'none');
   });
 }
 
-function drawMbChart(m, ser, markets, months, color, plat){
-  const card = $('mbc-' + m.k), body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
-  const hide = !!MB.hideAxis[m.k];
-  if (MB.showTable[m.k]) {
+function drawMbChart(m, ser, markets, months, color, dashed, plat, card, H){
+  const body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
+  const hide = !!MB.hideAxis.perf;
+  if (MB.showTable.perf) {
     body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th>${markets.map(mk => `<th data-r>${esc(mk)}</th>`).join('')}</tr></thead><tbody>` +
       months.map((mo, i) => `<tr><td>${monthLabel(mo)}</td>${markets.map(mk => { const p = ser[mk][i]; return `<td data-r>${p.v == null ? `<span class="hint">${p.n ? 'too few' : '—'}</span>` : (hide ? '•' : m.f(p.v))}</td>`; }).join('')}</tr>`).join('') +
       '</tbody></table></div>';
@@ -1950,34 +2032,31 @@ function drawMbChart(m, ser, markets, months, color, plat){
   }
   const vals = markets.flatMap(mk => ser[mk].map(p => p.v)).filter(v => v != null);
   if (!vals.length) { body.innerHTML = `<div class="status" style="padding:30px">Not enough clients for a ${esc(mLabelFor(m, plat))} benchmark with these filters.</div>`; return; }
-  const W = Math.max(300, body.clientWidth || 460), H = 210, L = hide ? 14 : 58, R = 14, T = 10, Bm = 26;
+  const W = Math.max(300, body.clientWidth || 460), L = hide ? 8 : 58, R = 8, T = 10, n = months.length, Bm = mbBottom(W, L, R, n);
   let lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) { hi = lo * 1.1 || 1; lo = lo * 0.9; }
   const pad = (hi - lo) * 0.12; lo = Math.max(0, lo - pad); hi = hi + pad;
-  const step = niceStep((hi - lo) / 3), y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
-  const n = months.length, X = i => n > 1 ? L + i * (W - L - R) / (n - 1) : (L + W - R) / 2;
+  const step = niceStep((hi - lo) / 4), y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+  const slot = (W - L - R) / n, X = i => L + slot * i + slot / 2;
   const Y = v => T + (H - T - Bm) * (1 - (v - y0) / (y1 - y0));
   let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(mLabelFor(m, plat))} by month and market">`;
   if (!hide) for (let v = y0; v <= y1 + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${m.f(v)}</text>`;
   else svg += `<line x1="${L}" x2="${W - R}" y1="${H - Bm}" y2="${H - Bm}" stroke="var(--border)"/>`;
-  months.forEach((mo, i) => { if (n <= 6 || i % 2 === (n - 1) % 2) svg += `<text x="${X(i)}" y="${H - 8}" text-anchor="${i === n - 1 && n > 1 ? 'end' : i === 0 && n > 1 ? 'start' : 'middle'}" font-size="10.5" fill="var(--muted)">${monthLabel(mo)}</text>`; });
+  svg += mbXLabels(months, X, slot, H, Bm);
   markets.forEach(mk => {
     const c = color(mk); let d = '', open = false;
     ser[mk].forEach((p, i) => { if (p.v == null) { open = false; return; } d += (open ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p.v).toFixed(1); open = true; });
-    if (d) svg += `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
+    if (d) svg += `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" ${dashed(mk) ? 'stroke-dasharray="6 4"' : ''}/>`;
     ser[mk].forEach((p, i) => { if (p.v != null) svg += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="3.5" fill="${c}" stroke="var(--surface)" stroke-width="2"/>`; });
   });
-  const slot = n > 1 ? (W - L - R) / (n - 1) : W - L - R;
-  months.forEach((mo, i) => { svg += `<rect class="mbhit" data-i="${i}" x="${X(i) - slot / 2}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`; });
-  svg += '</svg>';
-  body.innerHTML = svg;
+  months.forEach((mo, i) => { svg += `<rect class="mbhit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`; });
+  body.innerHTML = svg + '</svg>';
   body.querySelectorAll('.mbhit').forEach(r => {
     r.addEventListener('mousemove', e => {
       const i = +r.dataset.i;
-      tip.innerHTML = `<b>${monthLabel(months[i])}</b>` + markets.map(mk => { const p = ser[mk][i];
+      const order = [...markets].sort((a, b) => (ser[b][i].v ?? -Infinity) - (ser[a][i].v ?? -Infinity));
+      tip.innerHTML = `<b>${monthLabel(months[i])} · ${esc(mLabelFor(m, plat))}</b>` + order.map(mk => { const p = ser[mk][i];
         return `<div class="row"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color(mk)};margin-right:6px"></i>${esc(mk)}</span><span>${p.v == null ? (p.n ? `too few (${p.n})` : '—') : `${hide ? '' : m.f(p.v) + ' · '}${p.n} clients`}</span></div>`; }).join('');
-      const cr = card.getBoundingClientRect();
-      let x = e.clientX - cr.left + 14; if (x > cr.width - 210) x = e.clientX - cr.left - 210;
-      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+      mbTip(card, tip, e, 220);
     });
     r.addEventListener('mouseleave', () => tip.style.display = 'none');
   });
