@@ -1759,7 +1759,7 @@ const LEAD_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversio
 const APP_TYPES = ['mobile_app_install', 'app_install', 'omni_app_install'];
 const COUNTRY_WORDS = ['uk','gb','us','usa','de','fr','ie','nl','au','ca','nz','es','it','se','dk','no','ch','at','be','pl','in','ph','sg','ae','za','jp','eu','emea','apac','row','global','intl','international',
   'united kingdom','united states','germany','france','ireland','netherlands','australia','canada','spain','italy','sweden','denmark','norway','switzerland','austria','belgium','poland','india','philippines','singapore','japan',
-  'ad account','ads account','account','meta','facebook','fb','ig','instagram','ads','paid social','social','main','new'];
+  'ad account','ads account','account','meta','facebook','fb','ig','instagram','ads','paid social','social','main'];
 function guessClient(name, business){
   if (business && !CONFIG.AGENCY_BUSINESS_NAMES.some(b => b.toLowerCase() === business.toLowerCase())) return business;
   let n = ' ' + (name || '') + ' ';
@@ -1841,6 +1841,68 @@ function suggestCSV(){
   return [SHEET_COLS.join(','), ...SUG.rows.map(r => SHEET_COLS.map(c => q(r.out[c])).join(','))].join('\n');
 }
 
+// ── Matching Google accounts to existing clients
+const GMATCH = {};   // user overrides: customer id → client ('' = new client)
+const MATCH_STOP = ['google','gads','adwords','ads','ad','account','search','pmax','performance','max','shopping','brand','generic',
+  'ltd','limited','plc','inc','llc','co','group','the','and','gbp','eur','usd','old','main','agency','gain','mcc'];
+function nameTokens(s){
+  let n = ' ' + String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ') + ' ';
+  COUNTRY_WORDS.concat(MATCH_STOP).forEach(w => { n = n.replace(new RegExp(' ' + w.replace(/ /g, ' ') + '(?= )', 'g'), ' '); });
+  return n.trim().split(/ +/).filter(Boolean);
+}
+function bigrams(s){ const t = s.replace(/ /g, ''); const out = []; for (let i = 0; i < t.length - 1; i++) out.push(t.slice(i, i + 2)); return out; }
+function dice(a, b){
+  const A = bigrams(a), B = bigrams(b); if (!A.length || !B.length) return 0;
+  const m = {}; A.forEach(x => m[x] = (m[x] || 0) + 1); let hit = 0;
+  B.forEach(x => { if (m[x]) { m[x]--; hit++; } }); return 2 * hit / (A.length + B.length);
+}
+function matchClient(googleName){
+  const g = nameTokens(googleName).join(' ');
+  let best = null, score = 0;
+  clients().forEach(c => {
+    const t = nameTokens(c).join(' ');
+    if (!t || !g) return;
+    let s = dice(g, t);
+    if (g === t) s = 1;
+    else if ((' ' + g + ' ').includes(' ' + t + ' ') || (' ' + t + ' ').includes(' ' + g + ' ')) s = Math.max(s, 0.9);
+    // abbreviations: "MB Search" → Molton Brown, "CT US" → Charles Tyrwhitt
+    const ini = t.split(' ').map(w => w[0]).join('');
+    if (ini.length >= 2 && g.split(' ').includes(ini)) s = Math.max(s, 0.6);
+    if (s > score) { score = s; best = c; }
+  });
+  const conf = score >= 0.999 ? 'exact' : score >= 0.8 ? 'likely' : score >= 0.55 ? 'check' : 'none';
+  return { client: conf === 'none' ? '' : best, conf };
+}
+// The labels an existing client already has (most common value across its rows)
+function clientProfile(c){
+  const rows = S.accounts.filter(a => a.client === c);
+  const top = k => { const n = {}; rows.forEach(a => a[k] && (n[a[k]] = (n[a[k]] || 0) + 1)); return Object.keys(n).sort((x, y) => n[y] - n[x])[0] || ''; };
+  return { industry: top('industry'), sub: top('sub'), model: top('model'), aov: top('aov') };
+}
+function googleMatchRows(){
+  return Object.entries(GD.byId).filter(([id]) => !S.byId[id]).map(([id, g]) => {
+    const m = matchClient(g.name);
+    const client = id in GMATCH ? GMATCH[id] : m.client;
+    const sp = {}; let spend = 0;
+    g.rows.forEach(r => { spend += r.spend; sp[r.country] = (sp[r.country] || 0) + r.spend; });
+    const top = Object.entries(sp).sort((a, b) => b[1] - a[1])[0];
+    const market = top && spend ? (top[1] / spend >= CONFIG.MARKET_SHARE ? top[0] : 'Multi-market') : '';
+    return { id, ...g, spend, market, client, conf: id in GMATCH ? (GMATCH[id] ? 'exact' : 'none') : m.conf,
+             guess: guessClient(g.name, '') || g.name };
+  }).sort((a, b) => b.spend - a.spend);
+}
+function googleSheetRows(list){
+  return list.map(a => {
+    const known = a.client && clients().includes(a.client);
+    const p = known ? clientProfile(a.client) : {};
+    const row = { account_id: fmtGId(a.id), account_name: a.name, client: known ? a.client : a.guess, industry: p.industry || '',
+      sub_vertical: p.sub || '', business_model: p.model || '', market: a.market, aov_band: p.aov || '',
+      include_in_benchmarks: a.spend > 0 ? 'Yes' : 'No', custom_conversion_id: '', custom_conversion_label: '',
+      custom_conversion_target_gbp: '', notes: known ? 'Google' : 'Google · new client, check name and add industry' };
+    return SHEET_COLS.map(c => row[c] ?? '');
+  });
+}
+function googleRowsTSV(list){ return googleSheetRows(list).map(r => r.map(v => String(v).replace(/[\t\n]/g, ' ')).join('\t')).join('\n'); }
 function fmtGId(id){ return String(id).replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3'); }
 function srcLine(src, label){
   if (!src) return '';
@@ -1878,13 +1940,41 @@ function renderSetup(){
   if (notInSheet.length) h += `<div style="margin-bottom:8px"><button class="btn ghost" id="copy-missing">Copy as rows (account_id, account_name)</button> <span class="hint" id="copy-msg"></span></div>`;
   h += tbl(['Account ID', 'Meta name', 'Currency', 'Status'], notInSheet.map(a => [esc(a.id), esc(a.name), esc(a.currency), a.status === 1 ? '<span class="pill ok">Active</span>' : `<span class="pill">${esc(a.status)}</span>`]), 'None. Every account your token can see is in the sheet.');
 
-  // A2: Google accounts in the data file but not in the sheet
-  const gNotInSheet = Object.entries(GD.byId).filter(([id]) => !S.byId[id]).map(([id, g]) => ({ id, ...g, spend: g.rows.reduce((s, r) => s + r.spend, 0) }));
+  // A2: Google accounts in the data file but not in the sheet → matched to existing clients
+  const gNotInSheet = googleMatchRows();
   if (GD.loadedAt) {
-    h += `<h3 class="sec"><strong>Google accounts</strong> <em>not in the sheet (${gNotInSheet.length})</em></h3><p class="hint" style="margin-bottom:8px">Accounts in the Google data file with no row in the lookup sheet. IDs copy as 123-456-7890 so the dashboard knows they're Google.</p>`;
-    if (gNotInSheet.length) h += `<div style="margin-bottom:8px"><button class="btn ghost" id="copy-g-missing">Copy as rows (account_id, account_name)</button> <span class="hint" id="copy-g-msg"></span></div>`;
-    h += tbl(['Customer ID', 'Google name', 'Currency', 'Spend in file'], gNotInSheet.map(a => [esc(fmtGId(a.id)), esc(a.name), esc(a.currency), `${fmt(a.spend, 0)} ${esc(a.currency)}`]), 'None. Every Google account in the file is in the sheet.');
+    h += `<h3 class="sec"><strong>Google accounts</strong> <em>to add (${gNotInSheet.length})</em></h3>
+      <p class="hint" style="margin-bottom:8px">Accounts in the Google data file with no row in the lookup sheet. Each is matched to the closest existing client name; check the matches, change any that are wrong, then copy the rows. Industry, sub-vertical, business model and AOV band are copied from that client's existing rows.</p>`;
+    if (gNotInSheet.length) h += `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="copy-g-rows">Copy rows for the sheet</button><button class="btn ghost" id="dl-g-rows">Download as CSV</button>
+        <span class="hint" id="copy-g-msg">Paste into column A of the first empty row on the Accounts tab.</span></div>`;
+    const opts = clients();
+    h += tbl(['Google account', 'Spend in file', 'Match', 'Client', 'Industry it gets'], gNotInSheet.map(a => {
+      const sel = a.client, isNew = !opts.includes(sel);
+      const conf = { exact: '<span class="pill ok">Exact</span>', likely: '<span class="pill ok">Likely</span>', check: '<span class="pill warn">Check</span>', none: '<span class="pill">No match</span>' }[a.conf];
+      return [
+        `${esc(a.name || '—')}<div class="hint">${esc(fmtGId(a.id))} · ${esc(a.currency)}</div>`,
+        `${fmt(a.spend, 0)} ${esc(a.currency)}`,
+        conf,
+        `<select class="ctl gmatch" data-id="${a.id}" style="min-width:180px">
+           <option value="__new__"${isNew ? ' selected' : ''}>New client: ${esc(a.guess || a.name || '')}</option>
+           ${opts.map(c => `<option value="${esc(c)}"${c === sel ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+         </select>`,
+        isNew ? '<span class="cf-yellow">To fill in</span>' : esc(clientProfile(sel).industry || '—'),
+      ];
+    }), 'None. Every Google account in the file is in the sheet.');
   }
+
+  // A3: currencies used by your accounts that the FX file doesn't cover
+  const usedCur = new Set();
+  Object.values(GD.byId).forEach(g => g.currency && usedCur.add(g.currency.toUpperCase()));
+  Object.values(META.byId).forEach(m => m.currency && usedCur.add(m.currency.toUpperCase()));
+  const missingCur = [...usedCur].filter(c => S.fx[c] == null).sort();
+  h += `<h3 class="sec"><strong>Currencies</strong> <em>missing from FX (${missingCur.length})</em></h3>`;
+  if (missingCur.length) {
+    h += `<p class="hint" style="margin-bottom:8px">Accounts in these currencies are left out until the FX tab has a rate. Copy the rows and paste them into column A of the first empty row on the FX tab; the formulas work on any row. Then download fx.csv again.</p>
+      <div style="margin-bottom:8px"><button class="btn ghost" id="copy-fx">Copy FX rows (${missingCur.map(esc).join(', ')})</button> <span class="hint" id="copy-fx-msg"></span></div>`;
+  } else h += '<p class="hint">None. Every currency your Meta and Google accounts use has a rate.</p>';
 
   // B: incomplete rows
   const incomplete = S.accounts.filter(a => !isComplete(a));
@@ -1958,10 +2048,26 @@ function renderSetup(){
     boot(true);
   });
   $('token-save')?.addEventListener('click', () => { const v = $('token-input').value.trim(); if (!v) return; try { sessionStorage.setItem('mb_token', v); } catch {} location.reload(); });
-  $('copy-g-missing')?.addEventListener('click', async () => {
-    const tsv = gNotInSheet.map(a => `${fmtGId(a.id)}\t${a.name || ''}`).join('\n');
-    try { await navigator.clipboard.writeText(tsv); setText('copy-g-msg', `Copied ${gNotInSheet.length} rows. Paste into column A of the Accounts tab.`); }
-    catch { setText('copy-g-msg', 'Copy failed. Select the table and copy it manually.'); }
+  document.querySelectorAll('.gmatch').forEach(s => s.addEventListener('change', () => {
+    GMATCH[s.dataset.id] = s.value === '__new__' ? '' : s.value; renderSetup();
+  }));
+  $('copy-g-rows')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(googleRowsTSV(gNotInSheet)); setText('copy-g-msg', `Copied ${gNotInSheet.length} rows. Paste into column A of the first empty row on the Accounts tab.`); }
+    catch { setText('copy-g-msg', 'Copy failed. Use Download as CSV instead.'); }
+  });
+  $('dl-g-rows')?.addEventListener('click', () => {
+    const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const csv = [SHEET_COLS.join(','), ...googleSheetRows(gNotInSheet).map(r => r.map(q).join(','))].join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'google_accounts_for_sheet.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  $('copy-fx')?.addEventListener('click', async () => {
+    const tsv = missingCur.map(c => [c,
+      '=IF(INDIRECT("D"&ROW())<>"",INDIRECT("D"&ROW()),INDIRECT("C"&ROW()))',
+      '=IFERROR(GOOGLEFINANCE("CURRENCY:"&INDIRECT("A"&ROW())&"GBP"),"")',
+      '', `Source: Google Finance live rate, 1 ${c} in GBP. Type a rate in manual_override to fix it instead.`].join('\t')).join('\n');
+    try { await navigator.clipboard.writeText(tsv); setText('copy-fx-msg', `Copied ${missingCur.length} rows.`); }
+    catch { setText('copy-fx-msg', 'Copy failed.'); }
   });
   $('copy-missing')?.addEventListener('click', async () => {
     const tsv = notInSheet.map(a => `${a.id}\t${a.name || ''}`).join('\n');
