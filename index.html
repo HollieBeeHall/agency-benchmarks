@@ -184,6 +184,20 @@
   .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
   .legend i.band { height: 10px; border: none; background: var(--band); }
   .legend i.sw { width: 10px; height: 10px; border: none; border-radius: 3px; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 14px; align-items: start; }
+  .chart-grid .chart-card { padding: 14px 16px; }
+  .mix-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 12px; padding: 5px 10px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer; }
+  .seg button.on { background: var(--ink); color: var(--bg); }
+  .chart-title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .chart-title .t { font-weight: 700; }
+  .chart-title .tools { margin-left: auto; display: flex; gap: 4px; }
+  .mini-btn { background: none; border: 1px solid var(--border2); color: var(--muted); border-radius: 5px; font-size: 11px; padding: 3px 7px; cursor: pointer; }
+  .mini-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .axis-toggle { display: flex !important; align-items: center; gap: 6px; font-size: 12px !important; color: var(--ink) !important; padding-bottom: 8px; }
+  .axis-toggle input { accent-color: var(--accent); }
+  @media (max-width: 520px) { .chart-grid { grid-template-columns: 1fr; } }
   .tooltip { position: absolute; pointer-events: none; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); display: none; z-index: 5; min-width: 160px; }
   .tooltip b { display: block; margin-bottom: 4px; }
   .tooltip .row { display: flex; justify-content: space-between; gap: 14px; }
@@ -325,37 +339,60 @@
   </div>
 </section>
 
-<!-- ═════════ OVERVIEW ═════════ -->
+<!-- ═════════ OVERVIEW: market benchmarks ═════════ -->
 <section class="view" id="view-overview">
   <div class="page">
-    <h2 class="title"><strong>Cost</strong> <em>overview</em></h2>
-    <div class="sub">Monthly spend across Meta and Google Ads, converted to GBP.</div>
+    <h2 class="title"><strong>Market</strong> <em>benchmarks</em></h2>
+    <div class="sub">Peer averages by market and channel, month by month. Not client-specific: every benchmark-ready client counts once.</div>
     <div class="bench-filters">
-      <div><label for="ov-scope">Scope</label>
-        <select class="ctl" id="ov-scope"><option value="client">Selected client</option><option value="all">All clients</option></select></div>
-      <div><label for="ov-period">Period</label>
-        <select class="ctl" id="ov-period">
+      <div><label for="mb-channel">Channel</label>
+        <select class="ctl" id="mb-channel">
+          <option value="ALL">All channels</option>
+          <option value="G_ALL">Google: all types</option>
+          <option value="META">Meta</option>
+          <option value="SEARCH">Google Search</option>
+          <option value="PERFORMANCE_MAX">Google Performance Max</option>
+          <option value="SHOPPING">Google Shopping</option>
+          <option value="VIDEO">Google YouTube / Video</option>
+          <option value="DEMAND_GEN">Google Demand Gen</option>
+          <option value="G_OTHER">Google other</option>
+        </select></div>
+      <div id="mb-objective-wrap"><label for="mb-objective">Meta objective</label><select class="ctl" id="mb-objective"></select></div>
+      <div><label for="mb-industry">Industry</label><select class="ctl" id="mb-industry"></select></div>
+      <div><label for="mb-model">Business model</label><select class="ctl" id="mb-model"></select></div>
+      <div><label>Markets</label><div class="ms-wrap" id="mb-markets"></div></div>
+      <div><label for="mb-period">Period</label>
+        <select class="ctl" id="mb-period">
           <option value="3">Last 3 full months</option>
           <option value="6">Last 6 full months</option>
           <option value="12" selected>Last 12 full months</option>
         </select></div>
-      <div><button class="btn" id="ov-load" style="width:100%">Load Meta data</button></div>
+      <div><label class="axis-toggle"><input type="checkbox" id="mb-axes" checked/> Show axis values</label></div>
+      <div><button class="btn" id="mb-load" style="width:100%">Load Meta data</button></div>
     </div>
-    <div class="bench-meta" id="ov-meta"></div>
-    <div id="ov-status" class="status" style="display:none"></div>
-    <div id="ov-body" style="display:none">
-      <div class="summary-grid" id="ov-kpis" style="margin-top:14px"></div>
-      <div class="chart-card" id="ov-card">
-        <div class="chart-head">
-          <div><strong>Spend</strong> <em style="font-weight:300">by channel and month</em></div>
-          <div class="legend" id="ov-legend"></div>
+    <div class="bench-meta" id="mb-meta"></div>
+    <div id="mb-status" class="status" style="display:none"></div>
+    <div id="mb-body" style="display:none">
+      <div id="mb-mix" style="display:none">
+        <h3 class="sec"><strong>Spend</strong> <em>by channel</em></h3>
+        <div class="mix-bar">
+          <div class="legend" id="mb-mix-legend"></div>
+          <div class="seg" id="mb-mix-mode"><button type="button" data-mode="gbp">£ spend</button><button type="button" data-mode="share">% share</button></div>
         </div>
-        <div id="ov-chart"></div>
-        <div class="tooltip" id="ov-tip"></div>
+        <div id="mb-mix-main"></div>
+        <div class="chart-grid" id="mb-mix-markets" style="margin-top:14px"></div>
+        <h3 class="sec"><strong>Performance</strong> <em>by market</em></h3>
+        <p class="hint" id="mb-perf-note" style="margin:-4px 0 0"></p>
       </div>
-      <h3 class="sec"><strong>Monthly</strong> <em>spend table</em></h3>
-      <div class="table-wrap"><table id="ov-table"></table></div>
-      <p class="hint" style="margin-top:8px" id="ov-notes"></p>
+      <div class="legend" id="mb-legend" style="margin:14px 0 10px"></div>
+      <div class="chart-grid" id="mb-charts"></div>
+      <h3 class="sec"><strong>Period</strong> <em>summary</em></h3>
+      <div class="table-wrap"><table id="mb-table"></table></div>
+      <div id="mb-mix-summary" style="display:none">
+        <h3 class="sec"><strong>Channel</strong> <em>mix</em></h3>
+        <div class="table-wrap"><table id="mb-mix-table"></table></div>
+      </div>
+      <p class="hint" style="margin-top:8px" id="mb-notes"></p>
     </div>
   </div>
 </section>
@@ -1586,153 +1623,314 @@ function renderIndustryTable(f){
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  OVERVIEW: monthly spend across Meta and Google Ads (GBP)
+//  OVERVIEW: market benchmarks by channel (not client-specific)
 // ═══════════════════════════════════════════════════════════════════
-const OV_SERIES = [
-  { k: 'META',            l: 'Meta',              c: 'var(--s1)' },
-  { k: 'SEARCH',          l: 'Google Search',     c: 'var(--s2)' },
-  { k: 'PERFORMANCE_MAX', l: 'Google PMax',       c: 'var(--s3)' },
-  { k: 'SHOPPING',        l: 'Google Shopping',   c: 'var(--s4)' },
-  { k: 'VIDEO',           l: 'Google YouTube',    c: 'var(--s5)' },
-  { k: 'DEMAND_GEN',      l: 'Google Demand Gen', c: 'var(--s6)' },
-  { k: 'G_OTHER',         l: 'Google other',      c: 'var(--s7)' },
-];
 function gSeries(ch){ if (ch === 'DISCOVERY') return 'DEMAND_GEN'; return ['SEARCH','PERFORMANCE_MAX','SHOPPING','VIDEO','DEMAND_GEN'].includes(ch) ? ch : 'G_OTHER'; }
-const OV = { meta: null, metaKey: null, loading: false };
-function ovMonths(){ const p = benchPeriod(Number($('ov-period').value)); return { ...p, months: monthsBetween(p.since, p.until) }; }
-function ovAccounts(){
-  const all = $('ov-scope').value === 'all';
-  return S.accounts.filter(a => S.byId[a.id] === a && a.client && (all || a.client === currentClient));
-}
-function ovMetaIds(){ return ovAccounts().filter(a => a.platform === 'meta' && accessible(a.id) && rateFor(a.id) != null).map(a => a.id); }
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+const MB = { markets: new Set(), userPicked: false, hideAxis: {}, showTable: {}, metaKey: null };
+const MB_COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)'];
+const MB_MAX_MARKETS = 7;
 
-async function loadOverviewMeta(force){
-  if (!TOKEN) { ovStatus('No Meta token, so only Google figures are shown. Add a token on the Setup tab.'); renderOverview(); return; }
-  const { since, until } = ovMonths();
-  const ids = ovMetaIds();
-  OV.loading = true; $('ov-load').disabled = true;
-  const res = await fetchMetaInsights(ids, since, until, force,
-    (d, t) => ovStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching Meta data: ${d} of ${t} accounts…`));
-  OV.meta = res; OV.metaKey = res.key; OV.loading = false;
-  $('ov-load').disabled = false; $('ov-load').textContent = 'Refresh Meta data';
-  $('ov-status').style.display = 'none';
-  renderOverview();
-}
-function ovStatus(html){ const el = $('ov-status'); el.style.display = 'block'; el.className = 'status'; el.innerHTML = html; }
-$('ov-load').addEventListener('click', () => loadOverviewMeta(OV.meta && $('ov-load').textContent.startsWith('Refresh')));
-['ov-scope', 'ov-period'].forEach(id => $(id).addEventListener('change', () => { $('ov-load').textContent = 'Load Meta data'; renderOverview(); }));
-
-function ovCompute(){
-  const { since, until, months } = ovMonths();
+function mbPeriod(){ const p = benchPeriod(Number($('mb-period').value)); return { ...p, months: monthsBetween(p.since, p.until) }; }
+function mbChannel(){ return $('mb-channel').value; }
+function mbPlat(){ const c = mbChannel(); return c === 'META' ? 'meta' : c === 'ALL' ? 'all' : 'google'; }
+function mbIsMix(){ const c = mbChannel(); return c === 'ALL' || c === 'G_ALL'; }
+function mbMetaData(){
+  const { since, until } = mbPeriod();
   const key = `mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`;
-  const metaData = (OV.meta && OV.meta.key === key) ? OV.meta.data : (META_MEMO[key]?.data || null);
-  const cells = {}; months.forEach(m => cells[m] = Object.fromEntries(OV_SERIES.map(s => [s.k, 0])));
-  const plat = { meta: zero(), google: zero() };
-  let metaMissing = 0, noRate = 0, gMissing = 0;
-  ovAccounts().forEach(a => {
-    const rate = rateFor(a.id);
-    if (a.platform === 'meta') {
-      if (!metaData || !metaData[a.id]) { if (accessible(a.id)) metaMissing++; return; }
-      if (rate == null) { noRate++; return; }
-      metaData[a.id].forEach(r => { if (cells[r.month]) { cells[r.month].META += r.spend * rate; addTo(plat.meta, r, rate); } });
-    } else {
-      const g = GD.byId[a.id];
-      if (!g) { gMissing++; return; }
-      if (rate == null) { noRate++; return; }
-      g.rows.forEach(r => { if (cells[r.month]) { cells[r.month][gSeries(r.objective)] += r.spend * rate; addTo(plat.google, r, rate); } });
-    }
-  });
-  return { months, cells, plat, metaLoaded: !!metaData, metaMissing, noRate, gMissing };
+  return META_MEMO[key]?.data || null;
 }
+function mbData(){ const p = mbPlat(); return p === 'meta' ? mbMetaData() : p === 'google' ? (GD.data || null) : (mbMetaData() || GD.data || null); }
+function mbRowsFor(a){ return a.platform === 'meta' ? (mbMetaData() || {})[a.id] : (GD.data || {})[a.id]; }
+// Channel a row belongs to: Meta, or the Google campaign type
+function mbRowCh(a, r){ return a.platform === 'meta' ? 'META' : gSeries(r.objective); }
+const MB_CHANNELS = ['META','SEARCH','PERFORMANCE_MAX','SHOPPING','VIDEO','DEMAND_GEN','G_OTHER'];
+const MB_CH_LABEL = { META:'Meta', SEARCH:'Search', PERFORMANCE_MAX:'Performance Max', SHOPPING:'Shopping', VIDEO:'YouTube / Video', DEMAND_GEN:'Demand Gen', G_OTHER:'Google other', OTHER:'Other (fewer than 4 clients)' };
+const MB_CH_COLOR = { META:'var(--s1)', SEARCH:'var(--s4)', PERFORMANCE_MAX:'var(--s2)', SHOPPING:'var(--s3)', VIDEO:'var(--s6)', DEMAND_GEN:'var(--s5)', G_OTHER:'var(--s7)', OTHER:'var(--faint)' };
+function fmtK(v){ if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return a >= 1e6 ? '£' + (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'm' : a >= 1e3 ? '£' + (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : '£' + Math.round(v); }
 
-function renderOverview(){
-  if (currentView !== 'overview') return;
-  const scopeAll = $('ov-scope').value === 'all';
-  if (!scopeAll && !currentClient) { ovStatus('Pick a client at the top right, or switch the scope to All clients.'); $('ov-body').style.display = 'none'; return; }
-  const c = ovCompute();
-  const tot = m => OV_SERIES.reduce((s, x) => s + c.cells[m][x.k], 0);
-  const grand = c.months.reduce((s, m) => s + tot(m), 0);
-  $('ov-body').style.display = 'block';
-  if (!c.metaLoaded && !OV.loading) ovStatus(`Meta figures aren't loaded for this period yet. Click <strong>Load Meta data</strong>${scopeAll ? ' (all clients can take a few minutes)' : ''}. Google figures are shown below.`);
-  else if (!OV.loading) $('ov-status').style.display = 'none';
-
-  const gLast = GD.months[GD.months.length - 1];
-  $('ov-meta').innerHTML = [
-    `<span class="pill">${scopeAll ? 'All clients' : esc(currentClient)} · ${c.months[0]} → ${c.months[c.months.length - 1]}</span>`,
-    `<span class="pill">GBP at FX-tab rates</span>`,
-    !GD.loadedAt ? '<span class="pill warn">No Google data loaded</span>' : (gLast && gLast < c.months[c.months.length - 1] ? `<span class="pill warn">Google data only runs to ${gLast}</span>` : ''),
-  ].join('');
-
-  // KPIs
-  const last = c.months[c.months.length - 1], prev = c.months[c.months.length - 2];
-  const chg = prev && tot(prev) ? (tot(last) - tot(prev)) / tot(prev) * 100 : null;
-  const share = v => grand ? fmt(v / grand * 100, 0) + '%' : '—';
-  const mSpend = c.plat.meta.spend, gSpend = c.plat.google.spend;
-  const blend = zero(); addTo(blend, c.plat.meta); addTo(blend, c.plat.google); const bd = derive(blend);
-  const kpi = (l, v, sub) => `<div class="s-card"><div class="s-label">${l}</div><div class="s-value">${v}</div>${sub ? `<div class="s-change flat">${sub}</div>` : ''}</div>`;
-  $('ov-kpis').innerHTML = [
-    kpi('Total spend', fmtGBP0(grand), `${c.months.length} months`),
-    kpi('Meta spend', fmtGBP0(mSpend), share(mSpend) + ' of total'),
-    kpi('Google spend', fmtGBP0(gSpend), share(gSpend) + ' of total'),
-    kpi(`${monthLabel(last)} spend`, fmtGBP0(tot(last)), chg == null ? '' : `${chg >= 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(chg), 1)}% vs ${monthLabel(prev)}`),
-    kpi('Blended cost / purchase', fmtGBP(bd.cpPurch), 'Meta + Google purchases'),
-    kpi('Blended ROAS', fmtX(bd.roas), 'Meta + Google revenue'),
-  ].join('');
-
-  // Series actually present
-  const present = OV_SERIES.filter(s => c.months.some(m => c.cells[m][s.k] > 0));
-  $('ov-legend').innerHTML = present.map(s => `<span><i class="sw" style="background:${s.c}"></i>${s.l}</span>`).join('');
-  renderOvChart(c, present, tot);
-
-  // Table
-  let h = `<thead><tr><th>Month</th>${present.map(s => `<th data-r>${s.l}</th>`).join('')}<th data-r>Total</th><th data-r>vs prev month</th></tr></thead><tbody>`;
-  c.months.forEach((m, i) => {
-    const t = tot(m), p = i ? tot(c.months[i - 1]) : null, d = p ? (t - p) / p * 100 : null;
-    h += `<tr><td>${monthLabel(m)}</td>${present.map(s => `<td data-r>${fmtGBP0(c.cells[m][s.k])}</td>`).join('')}<td data-r><strong>${fmtGBP0(t)}</strong></td><td data-r>${d == null ? '—' : (d >= 0 ? '+' : '−') + fmt(Math.abs(d), 1) + '%'}</td></tr>`;
-  });
-  h += `</tbody><tfoot><tr><td>Total</td>${present.map(s => `<td data-r>${fmtGBP0(c.months.reduce((x, m) => x + c.cells[m][s.k], 0))}</td>`).join('')}<td data-r>${fmtGBP0(grand)}</td><td></td></tr></tfoot>`;
-  $('ov-table').innerHTML = h;
-
-  const notes = [];
-  if (c.metaMissing) notes.push(`${c.metaMissing} Meta account${c.metaMissing === 1 ? '' : 's'} not loaded yet`);
-  if (c.gMissing) notes.push(`${c.gMissing} Google account${c.gMissing === 1 ? '' : 's'} in the sheet with no rows in the Google data file`);
-  if (c.noRate) notes.push(`${c.noRate} account${c.noRate === 1 ? '' : 's'} left out for lack of an FX rate`);
-  $('ov-notes').textContent = `Spend includes every account in the lookup sheet for ${scopeAll ? 'all clients' : 'this client'}, whatever its include_in_benchmarks setting. Blended cost / purchase and ROAS mix Meta (7-day click + 1-day view) with Google (each account's own attribution), so treat them as a guide.${notes.length ? ' Not included: ' + notes.join('; ') + '.' : ''}`;
+// Accounts in scope: benchmark-ready, right platform, matching industry / model
+function mbAccounts(){
+  const ind = $('mb-industry').value, model = $('mb-model').value, plat = mbPlat();
+  return S.accounts.filter(a => S.byId[a.id] === a && (plat === 'all' ? (a.platform === 'meta' || a.platform === 'google') : a.platform === plat) && benchEligible(a)
+    && (!ind || a.industry === ind) && (!model || a.model === model));
 }
-
-function renderOvChart(c, present, tot){
-  const box = $('ov-chart');
-  if (!present.length) { box.innerHTML = '<div class="status">No spend found for this scope and period.</div>'; return; }
-  const W = Math.max(320, box.clientWidth || 720), H = 280, L = 70, R = 12, T = 12, Bm = 30;
-  const n = c.months.length, slot = (W - L - R) / n, bw = Math.min(46, slot * 0.62);
-  const max = Math.max(...c.months.map(tot)) || 1;
-  const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
-  const Y = v => T + (H - T - Bm) * (1 - v / top);
-  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly spend by channel">`;
-  for (let v = 0; v <= top + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmtShortGBP(v)}</text>`;
-  c.months.forEach((m, i) => {
-    const x = L + slot * i + (slot - bw) / 2;
-    let acc = 0;
-    const segs = present.filter(s => c.cells[m][s.k] > 0);
-    segs.forEach((s, j) => {
-      const v = c.cells[m][s.k], y1 = Y(acc + v), y0 = Y(acc);
-      const h = Math.max(0, y0 - y1 - (j < segs.length - 1 ? 2 : 0));   // 2px surface gap between stacked segments
-      const isTop = j === segs.length - 1;
-      svg += isTop
-        ? `<path d="M${x},${y1 + h} V${y1 + 4} Q${x},${y1} ${x + 4},${y1} H${x + bw - 4} Q${x + bw},${y1} ${x + bw},${y1 + 4} V${y1 + h} Z" fill="${s.c}"/>`
-        : `<rect x="${x}" y="${y1 + 2}" width="${bw}" height="${h}" fill="${s.c}"/>`;
-      acc += v;
+function mbRowOk(a, r){
+  const ch = mbChannel();
+  if (a.platform === 'meta') { if (ch !== 'META' && ch !== 'ALL') return false; const o = $('mb-objective').value; return !o || r.objective === o; }
+  if (ch === 'ALL' || ch === 'G_ALL') return true;
+  return gSeries(r.objective) === ch;
+}
+// One pooled unit per client per market (per month, or across the period when month is null)
+function mbUnits(market, month, months){
+  const byClient = {};
+  mbAccounts().forEach(a => {
+    const rows = mbRowsFor(a); if (!rows) return;
+    const rate = rateFor(a.id); if (rate == null) return;
+    rows.forEach(r => {
+      if (r.country !== market || !mbRowOk(a, r)) return;
+      if (month ? r.month !== month : !months.includes(r.month)) return;
+      addTo(byClient[a.client] || (byClient[a.client] = zero()), r, rate);
     });
-    if (n <= 12 || i % 2 === 0) svg += `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle" font-size="11" fill="var(--muted)">${monthLabel(m)}</text>`;
-    svg += `<rect class="ovhit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`;
   });
-  svg += '</svg>';
-  box.innerHTML = svg;
-  const tip = $('ov-tip'), card = $('ov-card');
-  box.querySelectorAll('.ovhit').forEach(r => {
+  return Object.entries(byClient).filter(([, t]) => t.spend > 0).map(([client, t]) => ({ client, ...derive(t) }));
+}
+// Markets in scope, ordered by spend (stable colours: a market keeps its colour while it stays selected)
+function mbMarketOptions(){
+  const sp = {}, { months } = mbPeriod();
+  mbAccounts().forEach(a => {
+    const rows = mbRowsFor(a), rate = rateFor(a.id); if (!rows || rate == null) return;
+    rows.forEach(r => { if (mbRowOk(a, r) && months.includes(r.month)) sp[r.country] = (sp[r.country] || 0) + r.spend * rate; });
+  });
+  return Object.keys(sp).filter(c => sp[c] > 0 && c !== 'Unknown' && c !== 'UNKNOWN').sort((a, b) => sp[b] - sp[a]);
+}
+function mbBuildMarkets(){
+  const opts = mbMarketOptions();
+  [...MB.markets].forEach(m => { if (!opts.includes(m)) MB.markets.delete(m); });
+  if (!MB.userPicked || !MB.markets.size) { MB.markets.clear(); opts.slice(0, 4).forEach(m => MB.markets.add(m)); }
+  const wrap = $('mb-markets'); wrap.innerHTML = '';
+  const label = () => { const s = opts.filter(o => MB.markets.has(o)); return s.length ? (s.length <= 3 ? s.join(' + ') : `${s.length} markets`) : 'Pick markets'; };
+  const tr = document.createElement('button'); tr.type = 'button'; tr.className = 'ms-trigger'; tr.textContent = label();
+  const dd = document.createElement('div'); dd.className = 'ms-dropdown'; dd.onclick = e => e.stopPropagation();
+  tr.onclick = e => { e.stopPropagation(); const open = dd.classList.contains('open'); closeAllDD();
+    if (!open) { dd.classList.add('open'); const r = tr.getBoundingClientRect(); dd.style.top = (r.bottom + 4) + 'px'; dd.style.left = r.left + 'px'; dd.style.width = Math.max(r.width, 200) + 'px'; } };
+  if (!opts.length) { const n = document.createElement('div'); n.className = 'ms-option'; n.style.color = 'var(--muted)'; n.textContent = mbData() ? 'No markets with spend for these filters' : 'Load data to pick markets'; dd.appendChild(n); }
+  opts.forEach(o => {
+    const d = document.createElement('label'); d.className = 'ms-option';
+    d.innerHTML = `<input type="checkbox" ${MB.markets.has(o) ? 'checked' : ''}/><span>${flagFor(o)} ${esc(o)}</span>`;
+    const cb = d.querySelector('input');
+    cb.onchange = () => {
+      if (cb.checked && MB.markets.size >= MB_MAX_MARKETS) { cb.checked = false; return; }
+      cb.checked ? MB.markets.add(o) : MB.markets.delete(o); MB.userPicked = true;
+      tr.textContent = label(); renderOverview(false);
+    };
+    dd.appendChild(d);
+  });
+  const note = document.createElement('div'); note.className = 'ms-option'; note.style.color = 'var(--muted)'; note.style.fontSize = '11px';
+  note.textContent = `Up to ${MB_MAX_MARKETS} markets`; dd.appendChild(note);
+  wrap.appendChild(tr); wrap.appendChild(dd);
+  return opts;
+}
+function mbBuildFilters(){
+  fillSelect('mb-industry', uniq('industry'), 'All industries', true);
+  fillSelect('mb-model', uniq('model'), 'All models', true);
+  // Meta objectives present in loaded Meta data
+  const objs = new Set(); Object.values(mbMetaData() || {}).forEach(rows => rows.forEach(r => objs.add(r.objective)));
+  const el = $('mb-objective'), prev = el.value, list = [...objs].sort();
+  el.innerHTML = '<option value="">All objectives</option>' + list.map(o => `<option value="${esc(o)}">${esc(OBJ_LABEL[o] || o)}</option>`).join('');
+  const ch = mbChannel(), switched = MB.lastCh !== ch; MB.lastCh = ch;
+  // All channels: start with every Meta objective so the spend split covers all Meta spend
+  if (switched) MB.objUser = false;
+  el.value = MB.objUser && (prev === '' || list.includes(prev)) ? prev : (ch === 'ALL' || !list.includes('OUTCOME_SALES') ? '' : 'OUTCOME_SALES');
+  $('mb-objective-wrap').style.display = (ch === 'META' || ch === 'ALL') ? '' : 'none';
+}
+
+async function mbLoadMeta(force){
+  if (!TOKEN) { mbStatus('No Meta token. Add one on the Setup tab.', true); return; }
+  const { since, until } = mbPeriod();
+  const ids = S.accounts.filter(a => a.platform === 'meta' && benchEligible(a)).map(a => a.id);
+  if (!ids.length) { mbStatus('No benchmark-ready Meta accounts. Check the Setup tab.', true); return; }
+  $('mb-load').disabled = true;
+  await fetchMetaInsights(ids, since, until, force, (d, t) => mbStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching Meta data: ${d} of ${t} accounts…`));
+  $('mb-load').disabled = false;
+  $('mb-status').style.display = 'none';
+  renderOverview(true);
+}
+function mbStatus(html, err){ const el = $('mb-status'); el.style.display = 'block'; el.className = 'status' + (err ? ' err' : ''); el.innerHTML = html; }
+$('mb-load').addEventListener('click', () => mbLoadMeta($('mb-load').textContent.startsWith('Refresh')));
+['mb-channel','mb-objective','mb-industry','mb-model','mb-period'].forEach(id => $(id).addEventListener('change', () => {
+  if (id === 'mb-objective') MB.objUser = true;
+  if (id === 'mb-channel' || id === 'mb-industry' || id === 'mb-model') MB.userPicked = MB.userPicked && id !== 'mb-channel';
+  renderOverview(true);
+}));
+$('mb-axes').addEventListener('change', e => { (MB.chartKeys || BMETRICS.map(m => m.k)).forEach(k => MB.hideAxis[k] = !e.target.checked); renderOverview(false); });
+$('mb-mix-mode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; MB.mixShare = b.dataset.mode === 'share'; renderOverview(false); });
+
+function renderOverview(rebuild = true){
+  if (currentView !== 'overview') return;
+  if (rebuild) mbBuildFilters();
+  const plat = mbPlat(), data = mbData();
+  $('mb-load').style.display = plat === 'google' ? 'none' : '';
+  $('mb-load').textContent = mbMetaData() ? 'Refresh Meta data' : 'Load Meta data';
+  if (!data) {
+    $('mb-body').style.display = 'none'; $('mb-meta').innerHTML = '';
+    mbStatus(plat === 'all' ? 'No data yet. Choose the Google data CSV on the Setup tab and/or click <strong>Load Meta data</strong>.' : plat === 'meta' ? 'Click <strong>Load Meta data</strong> to fetch every benchmark-ready Meta account for this period. The first load can take a few minutes.'
+                             : 'No Google data loaded. Choose the Google data CSV on the Setup tab.', plat === 'google');
+    mbBuildMarkets();
+    return;
+  }
+  const opts = mbBuildMarkets();
+  const markets = opts.filter(o => MB.markets.has(o));
+  const { months } = mbPeriod();
+  $('mb-status').style.display = 'none'; $('mb-body').style.display = 'block';
+  const chLabel = $('mb-channel').selectedOptions[0].textContent;
+  const nClients = new Set(mbAccounts().map(a => a.client)).size;
+  $('mb-meta').innerHTML = [
+    `<span class="pill">${esc(chLabel)}${plat === 'meta' && $('mb-objective').value ? ' · ' + esc(OBJ_LABEL[$('mb-objective').value] || $('mb-objective').value) : ''}</span>`,
+    `<span class="pill">${esc($('mb-industry').value || 'All industries')}${$('mb-model').value ? ' · ' + esc($('mb-model').value) : ''}</span>`,
+    `<span class="pill">${months[0]} → ${months[months.length - 1]}</span>`,
+    `<span class="pill">${nClients} client${nClients === 1 ? '' : 's'} in scope · GBP</span>`,
+    `<span class="pill">${plat === 'meta' ? '7-day click + 1-day view' : plat === 'all' ? 'Meta 7d click + 1d view · Google as reported' : 'Purchase conversions as reported'}</span>`,
+    plat === 'all' && !mbMetaData() ? `<span class="pill" style="color:var(--warn)">Meta not loaded: Google only until you click Load Meta data</span>` : '',
+    plat === 'all' && !GD.data ? `<span class="pill" style="color:var(--warn)">No Google CSV loaded: Meta only</span>` : '',
+  ].join('');
+  // Colour follows the market, not its position: a market keeps its colour while it stays selected
+  MB.colorMap = MB.colorMap || {};
+  Object.keys(MB.colorMap).forEach(k => { if (!markets.includes(k)) delete MB.colorMap[k]; });
+  markets.forEach(mk => { if (MB.colorMap[mk] == null) { const used = Object.values(MB.colorMap); MB.colorMap[mk] = [0,1,2,3,4,5,6].find(i => !used.includes(i)); } });
+  const color = mk => MB_COLORS[MB.colorMap[mk]];
+  $('mb-legend').innerHTML = markets.length ? markets.map(m => `<span><i style="border-color:${color(m)}"></i>${flagFor(m)} ${esc(m)}</span>`).join('')
+                                            : '<span>Pick at least one market.</span>';
+
+  // series[metric][market] = [{month, v, n}]
+  const series = {};
+  BMETRICS.forEach(m => series[m.k] = {});
+  markets.forEach(mk => months.forEach(mo => {
+    const units = mbUnits(mk, mo);
+    BMETRICS.forEach(m => {
+      const st = stats(units, m, true);
+      (series[m.k][mk] || (series[m.k][mk] = [])).push({ month: mo, v: st.n >= CONFIG.MIN_CLIENTS ? st.avg : null, n: st.n });
+    });
+  }));
+
+  const mix = mbIsMix();
+  $('mb-mix').style.display = mix ? '' : 'none'; $('mb-mix-summary').style.display = mix ? '' : 'none';
+  MB.chartKeys = BMETRICS.map(m => m.k);
+  if (mix) renderMix(markets, months);
+
+  const box = $('mb-charts');
+  box.innerHTML = BMETRICS.map(m => `<div class="chart-card" id="mbc-${m.k}">
+      <div class="chart-title"><span class="t">${esc(mLabelFor(m, plat))}</span>${m.lower ? '<span class="hint">lower is better</span>' : ''}
+        <span class="tools"><button class="mini-btn" data-axis="${m.k}">${MB.hideAxis[m.k] ? 'Show axis' : 'Hide axis'}</button>
+        <button class="mini-btn" data-table="${m.k}">${MB.showTable[m.k] ? 'Chart' : 'Table'}</button></span></div>
+      <div class="mbc-body"></div><div class="tooltip"></div></div>`).join('');
+  BMETRICS.forEach(m => drawMbChart(m, series[m.k], markets, months, color, plat));
+  box.querySelectorAll('[data-axis]').forEach(b => b.addEventListener('click', () => { MB.hideAxis[b.dataset.axis] = !MB.hideAxis[b.dataset.axis]; renderOverview(false); }));
+  box.querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => { MB.showTable[b.dataset.table] = !MB.showTable[b.dataset.table]; renderOverview(false); }));
+  $('mb-axes').checked = !MB.chartKeys.every(k => MB.hideAxis[k]);
+
+  // Period summary: market × metric across the whole period
+  let h = `<thead><tr><th>Market</th><th data-r>Clients</th>${BMETRICS.map(m => `<th data-r>${esc(mLabelFor(m, plat))}</th>`).join('')}</tr></thead><tbody>`;
+  markets.forEach(mk => {
+    const units = mbUnits(mk, null, months);
+    const cells = BMETRICS.map(m => { const st = stats(units, m, false); return `<td data-r>${st.n >= CONFIG.MIN_CLIENTS ? m.f(st.avg) : `<span class="hint">${st.n ? 'too few' : '—'}</span>`}</td>`; }).join('');
+    h += `<tr><td>${flagFor(mk)} ${esc(mk)}</td><td data-r>${units.filter(u => u.spend >= CONFIG.MIN_SPEND_GBP).length}</td>${cells}</tr>`;
+  });
+  $('mb-table').innerHTML = h + '</tbody>';
+  $('mb-notes').textContent = `Each point is the simple average of qualifying clients in that market and month (each client counts once; a client needs £${fmt(CONFIG.MIN_SPEND_GBP_MONTH)}+ spend in the month, plus ${CONFIG.MIN_PURCHASES_MONTH}+ purchases for purchase metrics). A point only shows when ${CONFIG.MIN_CLIENTS}+ clients qualify; gaps mean too few. Markets use the country ads were delivered in. The period summary uses the period minimums (£${fmt(CONFIG.MIN_SPEND_GBP)} spend, ${CONFIG.MIN_PURCHASES} purchases). No figure is a single client's result.`;
+}
+function mLabelFor(m, plat){ return ((plat === 'google' || plat === 'all') && GOOGLE_LABELS[m.k]) || m.l; }
+
+// ── Spend by channel (All channels / Google all) ────────────────────
+// mix[market][monthIndex][channel] = { spend, clients:Set }
+function mbMixData(markets, months){
+  const mix = {}; markets.forEach(mk => mix[mk] = months.map(() => ({})));
+  mbAccounts().forEach(a => {
+    const rows = mbRowsFor(a), rate = rateFor(a.id); if (!rows || rate == null) return;
+    rows.forEach(r => {
+      if (!mix[r.country] || !mbRowOk(a, r) || !(r.spend > 0)) return;
+      const i = months.indexOf(r.month); if (i < 0) return;
+      const ch = mbRowCh(a, r), c = mix[r.country][i][ch] || (mix[r.country][i][ch] = { spend: 0, clients: new Set() });
+      c.spend += r.spend * rate; c.clients.add(a.client);
+    });
+  });
+  return mix;
+}
+// Turn raw cells into a safe bar: channels with fewer than MIN_CLIENTS clients are pooled into "Other";
+// a bar is hidden entirely when fewer than MIN_CLIENTS clients spent that month.
+function mbSafeBar(cells){
+  const all = new Set(), seg = {}, other = { spend: 0, clients: new Set() };
+  Object.entries(cells).forEach(([ch, c]) => {
+    c.clients.forEach(x => all.add(x));
+    if (c.clients.size >= CONFIG.MIN_CLIENTS) seg[ch] = { spend: c.spend, n: c.clients.size };
+    else { other.spend += c.spend; c.clients.forEach(x => other.clients.add(x)); }
+  });
+  if (all.size < CONFIG.MIN_CLIENTS) return { hidden: true, n: all.size, seg: {}, total: 0 };
+  if (other.spend > 0) seg.OTHER = { spend: other.spend, n: other.clients.size };
+  return { hidden: false, n: all.size, seg, total: Object.values(seg).reduce((s, c) => s + c.spend, 0) };
+}
+function mbMergeCells(list){
+  const out = {};
+  list.forEach(cells => Object.entries(cells).forEach(([ch, c]) => {
+    const o = out[ch] || (out[ch] = { spend: 0, clients: new Set() }); o.spend += c.spend; c.clients.forEach(x => o.clients.add(x));
+  }));
+  return out;
+}
+function renderMix(markets, months){
+  const raw = mbMixData(markets, months);
+  const totalBars = months.map((_, i) => mbSafeBar(mbMergeCells(markets.map(mk => raw[mk][i]))));
+  const mkBars = {}; markets.forEach(mk => mkBars[mk] = months.map((_, i) => mbSafeBar(raw[mk][i])));
+  const present = new Set(); [totalBars, ...Object.values(mkBars)].forEach(bs => bs.forEach(b => Object.keys(b.seg).forEach(c => present.add(c))));
+  const chans = [...MB_CHANNELS, 'OTHER'].filter(c => present.has(c));
+  $('mb-mix-legend').innerHTML = chans.length ? chans.map(c => `<span><i class="sw" style="background:${MB_CH_COLOR[c]}"></i>${esc(MB_CH_LABEL[c])}</span>`).join('') : '';
+  $('mb-mix-mode').querySelectorAll('button').forEach(b => b.classList.toggle('on', (b.dataset.mode === 'share') === !!MB.mixShare));
+  const title = markets.length === 1 ? `${flagFor(markets[0])} ${esc(markets[0])}` : `All selected markets (${markets.length})`;
+  $('mb-mix-main').innerHTML = mixCard('mix_total', title, true);
+  $('mb-mix-markets').innerHTML = markets.length > 1 ? markets.map((mk, j) => mixCard('mix_' + j, `${flagFor(mk)} ${esc(mk)}`, false)).join('') : '';
+  MB.chartKeys.push('mix_total'); drawStack('mix_total', totalBars, months, chans, 260);
+  if (markets.length > 1) markets.forEach((mk, j) => { MB.chartKeys.push('mix_' + j); drawStack('mix_' + j, mkBars[mk], months, chans, 190); });
+  $('mb-mix').querySelectorAll('[data-axis]').forEach(b => b.addEventListener('click', () => { MB.hideAxis[b.dataset.axis] = !MB.hideAxis[b.dataset.axis]; renderOverview(false); }));
+  $('mb-mix').querySelectorAll('[data-table]').forEach(b => b.addEventListener('click', () => { MB.showTable[b.dataset.table] = !MB.showTable[b.dataset.table]; renderOverview(false); }));
+  $('mb-perf-note').textContent = mbChannel() === 'ALL'
+    ? 'Below, each client\'s Meta and Google activity is pooled per market before averaging. Meta CTR / CPC use link clicks; Google uses all clicks.'
+    : 'Below, each client\'s Google campaign types are pooled per market before averaging.';
+
+  // Period channel mix: share of spend per market (and all selected markets)
+  const rowsFor = (label, cellsList) => {
+    const b = mbSafeBar(mbMergeCells(cellsList));
+    if (b.hidden) return `<tr><td>${label}</td><td data-r><span class="hint">too few</span></td>${chans.map(() => '<td data-r>—</td>').join('')}</tr>`;
+    return `<tr><td>${label}</td><td data-r>${fmtK(b.total)}</td>${chans.map(c => `<td data-r>${b.seg[c] ? fmt(100 * b.seg[c].spend / b.total, 0) + '%' : '—'}</td>`).join('')}</tr>`;
+  };
+  let h = `<thead><tr><th>Market</th><th data-r>Spend</th>${chans.map(c => `<th data-r>${esc(MB_CH_LABEL[c])}</th>`).join('')}</tr></thead><tbody>`;
+  markets.forEach(mk => h += rowsFor(`${flagFor(mk)} ${esc(mk)}`, raw[mk]));
+  if (markets.length > 1) h += rowsFor('<strong>All selected</strong>', markets.flatMap(mk => raw[mk]));
+  $('mb-mix-table').innerHTML = chans.length ? h + '</tbody>' : '<tbody><tr><td class="hint">Not enough clients to show a channel mix.</td></tr></tbody>';
+}
+function mixCard(key, title, big){
+  return `<div class="chart-card" id="mbc-${key}" ${big ? '' : ''}>
+    <div class="chart-title"><span class="t">${title}</span><span class="hint">${MB.mixShare ? 'share of spend' : 'spend, GBP'}</span>
+      <span class="tools"><button class="mini-btn" data-axis="${key}">${MB.hideAxis[key] ? 'Show axis' : 'Hide axis'}</button>
+      <button class="mini-btn" data-table="${key}">${MB.showTable[key] ? 'Chart' : 'Table'}</button></span></div>
+    <div class="mbc-body"></div><div class="tooltip"></div></div>`;
+}
+function drawStack(key, bars, months, chans, H){
+  const card = $('mbc-' + key), body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
+  const hide = !!MB.hideAxis[key], share = !!MB.mixShare;
+  const val = (b, c) => b.seg[c] ? (share ? 100 * b.seg[c].spend / b.total : b.seg[c].spend) : 0;
+  const fmtV = v => share ? fmt(v, 0) + '%' : fmtK(v);
+  const used = chans.filter(c => bars.some(b => b.seg[c]));
+  if (MB.showTable[key]) {
+    body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th>${used.map(c => `<th data-r>${esc(MB_CH_LABEL[c])}</th>`).join('')}<th data-r>Total</th></tr></thead><tbody>` +
+      months.map((mo, i) => { const b = bars[i];
+        if (b.hidden) return `<tr><td>${monthLabel(mo)}</td>${used.map(() => '<td data-r>—</td>').join('')}<td data-r><span class="hint">${b.n ? 'too few' : '—'}</span></td></tr>`;
+        return `<tr><td>${monthLabel(mo)}</td>${used.map(c => `<td data-r>${b.seg[c] ? (hide ? '•' : fmtV(val(b, c))) : '—'}</td>`).join('')}<td data-r>${hide ? '•' : share ? '100%' : fmtK(b.total)}</td></tr>`; }).join('') +
+      '</tbody></table></div>';
+    return;
+  }
+  if (!bars.some(b => !b.hidden)) { body.innerHTML = `<div class="status" style="padding:30px">Not enough clients to show a spend split here.</div>`; return; }
+  const W = Math.max(300, body.clientWidth || 460), L = hide ? 8 : 52, R = 8, T = 10, Bm = 26;
+  const maxV = share ? 100 : Math.max(...bars.map(b => b.total));
+  const step = share ? 25 : niceStep(maxV / 3), y1 = share ? 100 : Math.ceil(maxV / step) * step || 1;
+  const n = months.length, slot = (W - L - R) / n, bw = Math.min(46, slot * 0.68);
+  const X = i => L + slot * i + slot / 2, Y = v => T + (H - T - Bm) * (1 - v / y1);
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Spend by channel per month">`;
+  if (!hide) for (let v = 0; v <= y1 + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${fmtV(v)}</text>`;
+  else svg += `<line x1="${L}" x2="${W - R}" y1="${H - Bm}" y2="${H - Bm}" stroke="var(--border)"/>`;
+  months.forEach((mo, i) => {
+    if (n <= 6 || i % 2 === (n - 1) % 2) svg += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="var(--muted)">${monthLabel(mo)}</text>`;
+    const b = bars[i]; if (b.hidden) return;
+    let acc = 0;
+    used.forEach(c => { const v = val(b, c); if (!v) return; const y0 = Y(acc), yT = Y(acc + v); acc += v;
+      svg += `<rect x="${X(i) - bw / 2}" y="${yT}" width="${bw}" height="${Math.max(0, y0 - yT - 1)}" fill="${MB_CH_COLOR[c]}" rx="1.5"/>`; });
+  });
+  months.forEach((mo, i) => { svg += `<rect class="mbhit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`; });
+  body.innerHTML = svg + '</svg>';
+  body.querySelectorAll('.mbhit').forEach(r => {
     r.addEventListener('mousemove', e => {
-      const m = c.months[+r.dataset.i];
-      tip.innerHTML = `<b>${monthLabel(m)}</b>` + present.filter(s => c.cells[m][s.k] > 0).slice().reverse().map(s => `<div class="row"><span><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.c};margin-right:6px"></i>${s.l}</span><span>${fmtGBP0(c.cells[m][s.k])}</span></div>`).join('') + `<div class="row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px"><span>Total</span><span><strong>${fmtGBP0(tot(m))}</strong></span></div>`;
+      const b = bars[+r.dataset.i];
+      tip.innerHTML = `<b>${monthLabel(months[+r.dataset.i])}</b>` + (b.hidden ? `<div class="row"><span>${b.n ? `Too few clients (${b.n})` : 'No spend'}</span></div>`
+        : [...used].reverse().filter(c => b.seg[c]).map(c => `<div class="row"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${MB_CH_COLOR[c]};margin-right:6px"></i>${esc(MB_CH_LABEL[c])}</span><span>${hide ? '' : fmtK(b.seg[c].spend) + ' · '}${fmt(100 * b.seg[c].spend / b.total, 0)}%</span></div>`).join('')
+          + `<div class="row"><span>Total · ${b.n} clients</span><span>${hide ? '' : fmtK(b.total)}</span></div>`);
       const cr = card.getBoundingClientRect();
       let x = e.clientX - cr.left + 14; if (x > cr.width - 230) x = e.clientX - cr.left - 230;
       tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
@@ -1740,10 +1938,51 @@ function renderOvChart(c, present, tot){
     r.addEventListener('mouseleave', () => tip.style.display = 'none');
   });
 }
-function fmtGBP0(n){ return (n == null || isNaN(n)) ? '—' : '£' + fmt(n, 0); }
-function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
-function fmtShortGBP(v){ return v >= 1e6 ? '£' + fmt(v / 1e6, v % 1e6 ? 1 : 0) + 'm' : v >= 1e3 ? '£' + fmt(v / 1e3, 0) + 'k' : '£' + fmt(v, 0); }
-window.addEventListener('resize', () => { if (currentView === 'overview') renderOverview(); });
+
+function drawMbChart(m, ser, markets, months, color, plat){
+  const card = $('mbc-' + m.k), body = card.querySelector('.mbc-body'), tip = card.querySelector('.tooltip');
+  const hide = !!MB.hideAxis[m.k];
+  if (MB.showTable[m.k]) {
+    body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th>${markets.map(mk => `<th data-r>${esc(mk)}</th>`).join('')}</tr></thead><tbody>` +
+      months.map((mo, i) => `<tr><td>${monthLabel(mo)}</td>${markets.map(mk => { const p = ser[mk][i]; return `<td data-r>${p.v == null ? `<span class="hint">${p.n ? 'too few' : '—'}</span>` : (hide ? '•' : m.f(p.v))}</td>`; }).join('')}</tr>`).join('') +
+      '</tbody></table></div>';
+    return;
+  }
+  const vals = markets.flatMap(mk => ser[mk].map(p => p.v)).filter(v => v != null);
+  if (!vals.length) { body.innerHTML = `<div class="status" style="padding:30px">Not enough clients for a ${esc(mLabelFor(m, plat))} benchmark with these filters.</div>`; return; }
+  const W = Math.max(300, body.clientWidth || 460), H = 210, L = hide ? 14 : 58, R = 14, T = 10, Bm = 26;
+  let lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) { hi = lo * 1.1 || 1; lo = lo * 0.9; }
+  const pad = (hi - lo) * 0.12; lo = Math.max(0, lo - pad); hi = hi + pad;
+  const step = niceStep((hi - lo) / 3), y0 = Math.floor(lo / step) * step, y1 = Math.ceil(hi / step) * step;
+  const n = months.length, X = i => n > 1 ? L + i * (W - L - R) / (n - 1) : (L + W - R) / 2;
+  const Y = v => T + (H - T - Bm) * (1 - (v - y0) / (y1 - y0));
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(mLabelFor(m, plat))} by month and market">`;
+  if (!hide) for (let v = y0; v <= y1 + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--muted)">${m.f(v)}</text>`;
+  else svg += `<line x1="${L}" x2="${W - R}" y1="${H - Bm}" y2="${H - Bm}" stroke="var(--border)"/>`;
+  months.forEach((mo, i) => { if (n <= 6 || i % 2 === (n - 1) % 2) svg += `<text x="${X(i)}" y="${H - 8}" text-anchor="${i === n - 1 && n > 1 ? 'end' : i === 0 && n > 1 ? 'start' : 'middle'}" font-size="10.5" fill="var(--muted)">${monthLabel(mo)}</text>`; });
+  markets.forEach(mk => {
+    const c = color(mk); let d = '', open = false;
+    ser[mk].forEach((p, i) => { if (p.v == null) { open = false; return; } d += (open ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p.v).toFixed(1); open = true; });
+    if (d) svg += `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
+    ser[mk].forEach((p, i) => { if (p.v != null) svg += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="3.5" fill="${c}" stroke="var(--surface)" stroke-width="2"/>`; });
+  });
+  const slot = n > 1 ? (W - L - R) / (n - 1) : W - L - R;
+  months.forEach((mo, i) => { svg += `<rect class="mbhit" data-i="${i}" x="${X(i) - slot / 2}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`; });
+  svg += '</svg>';
+  body.innerHTML = svg;
+  body.querySelectorAll('.mbhit').forEach(r => {
+    r.addEventListener('mousemove', e => {
+      const i = +r.dataset.i;
+      tip.innerHTML = `<b>${monthLabel(months[i])}</b>` + markets.map(mk => { const p = ser[mk][i];
+        return `<div class="row"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${color(mk)};margin-right:6px"></i>${esc(mk)}</span><span>${p.v == null ? (p.n ? `too few (${p.n})` : '—') : `${hide ? '' : m.f(p.v) + ' · '}${p.n} clients`}</span></div>`; }).join('');
+      const cr = card.getBoundingClientRect();
+      let x = e.clientX - cr.left + 14; if (x > cr.width - 210) x = e.clientX - cr.left - 210;
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+    });
+    r.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+}
+window.addEventListener('resize', () => { if (currentView === 'overview') renderOverview(false); });
 
 // ═══════════════════════════════════════════════════════════════════
 //  SETUP
