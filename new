@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Paid Media Benchmarks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet" />
+<style>
+  /* ── GAIN brand tokens ─────────────────────────────────────────── */
+  :root {
+    --black: #000000; --white: #FFFFFF; --violet: #7546FF; --yellow: #F2FA7A;
+    --bg: #FFFFFF; --surface: #F6F5F1; --surface2: #ECEBE5;
+    --ink: #000000; --muted: #5E5E5E; --faint: #8A8A8A;
+    --border: rgba(0,0,0,0.09); --border2: rgba(0,0,0,0.16);
+    --accent: #7546FF; --accent-soft: rgba(117,70,255,0.10);
+    --good: #0E7C47; --warn: #9A6200; --bad: #C2302A;
+    --series-client: #7546FF; --series-peer: #5C5C5C; --band: rgba(0,0,0,0.08);
+    --s1: #7546FF; --s2: #eb6834; --s3: #1baf7a; --s4: #2a78d6; --s5: #eda100; --s6: #e87ba4; --s7: #008300;
+    --font: 'Inter Tight', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0B0B0B; --surface: #151515; --surface2: #1F1F1F;
+      --ink: #FFFFFF; --muted: #A6A6A6; --faint: #7A7A7A;
+      --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.16);
+      --accent: #9171FF; --accent-soft: rgba(145,113,255,0.16);
+      --good: #3ECF8E; --warn: #F2C14E; --bad: #F26B6B;
+      --series-client: #9171FF; --series-peer: #8C8C8C; --band: rgba(255,255,255,0.10);
+      --s1: #9171FF; --s2: #d95926; --s3: #199e70; --s4: #3987e5; --s5: #c98500; --s6: #d55181; --s7: #008300;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B0B0B; --surface: #151515; --surface2: #1F1F1F;
+    --ink: #FFFFFF; --muted: #A6A6A6; --faint: #7A7A7A;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.16);
+    --accent: #9171FF; --accent-soft: rgba(145,113,255,0.16);
+    --good: #3ECF8E; --warn: #F2C14E; --bad: #F26B6B;
+    --series-client: #9171FF; --series-peer: #8C8C8C; --band: rgba(255,255,255,0.10);
+    --s1: #9171FF; --s2: #d95926; --s3: #199e70; --s4: #3987e5; --s5: #c98500; --s6: #d55181; --s7: #008300;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-family: var(--font); font-size: 14px; }
+  body { background: var(--bg); color: var(--ink); min-height: 100vh; display: flex; flex-direction: column; }
+  button, select, input { font-family: var(--font); }
+  .num, td[data-r], .s-value { font-variant-numeric: tabular-nums; }
+  a { color: var(--accent); }
+
+  /* ── Header (always black) ─────────────────────────────────────── */
+  .topbar { background: var(--black); color: var(--white); padding: 0 28px; display: flex; align-items: center; gap: 24px; min-height: 60px; flex-wrap: wrap; }
+  .brand { font-size: 19px; letter-spacing: -0.01em; white-space: nowrap; }
+  .brand strong { font-weight: 700; }
+  .brand em { font-weight: 300; font-style: italic; }
+  .badge-int { background: var(--black); color: var(--yellow); border: 1px solid var(--yellow); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 20px; margin-left: 10px; vertical-align: 3px; }
+  .viewtabs { display: flex; gap: 2px; }
+  .viewtab { background: none; border: none; color: #BDBDBD; font-size: 13px; font-weight: 500; padding: 20px 14px 18px; border-bottom: 2px solid transparent; cursor: pointer; }
+  .viewtab:hover { color: var(--white); }
+  .viewtab.active { color: var(--white); border-bottom-color: var(--yellow); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .client-pick label { font-size: 11px; color: #BDBDBD; margin-right: 6px; }
+  .client-pick select { background: #1A1A1A; color: var(--white); border: 1px solid #3A3A3A; border-radius: 6px; padding: 7px 10px; font-size: 13px; min-width: 190px; }
+  .theme-btn { background: none; border: 1px solid #3A3A3A; color: var(--white); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+  .theme-btn:hover { border-color: var(--white); }
+
+  /* ── Generic ───────────────────────────────────────────────────── */
+  .view { display: none; flex: 1; }
+  .view.active { display: flex; flex-direction: column; }
+  .page { padding: 28px 32px; }
+  h2.title { font-size: 24px; letter-spacing: -0.02em; font-weight: 400; margin-bottom: 4px; }
+  h2.title strong { font-weight: 700; }
+  h2.title em { font-weight: 300; }
+  h3.sec { font-size: 16px; font-weight: 400; margin: 28px 0 10px; letter-spacing: -0.01em; }
+  h3.sec strong { font-weight: 700; }
+  h3.sec em { font-weight: 300; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .btn { padding: 9px 14px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn:hover { opacity: 0.88; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--border2); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--surface2); color: var(--muted); }
+  .pill.ok { color: var(--good); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+  select.ctl, input.ctl { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--ink); font-size: 12px; padding: 7px 10px; outline: none; }
+  select.ctl:focus, input.ctl:focus { border-color: var(--accent); }
+
+  /* ── Client report layout ──────────────────────────────────────── */
+  .market-nav { display: flex; align-items: center; gap: 2px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; }
+  .market-btn { padding: 0 14px; font-size: 13px; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; height: 44px; }
+  .market-btn:hover { color: var(--ink); }
+  .market-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
+  .market-flag { margin-right: 5px; font-size: 15px; }
+  .shell { display: grid; grid-template-columns: 240px minmax(0,1fr); flex: 1; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 22px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .main { padding: 28px 32px; min-width: 0; }
+  .section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  .filter-block { margin-bottom: 4px; }
+  .filter-block label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .filter-block input[type="date"] { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--ink); font-size: 12px; padding: 7px 10px; outline: none; }
+  .date-presets { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .preset-btn { padding: 4px 9px; font-size: 11px; font-weight: 500; background: var(--bg); border: 1px solid var(--border2); border-radius: 5px; color: var(--muted); cursor: pointer; }
+  .preset-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .preset-btn.active { background: var(--black); border-color: var(--black); color: var(--white); }
+  :root[data-theme="dark"] .preset-btn.active { background: var(--white); color: var(--black); border-color: var(--white); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .preset-btn.active { background: var(--white); color: var(--black); border-color: var(--white); } }
+
+  /* Multi-select */
+  .ms-wrap { position: relative; }
+  .ms-trigger { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 6px; color: var(--ink); font-size: 12px; padding: 7px 28px 7px 10px; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+  .ms-trigger::after { content:''; position:absolute; right:10px; top:50%; transform:translateY(-50%); border:4px solid transparent; border-top:5px solid var(--muted); }
+  .ms-dropdown { display: none; position: fixed; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; z-index: 1000; max-height: 240px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.25); min-width: 200px; }
+  .ms-dropdown.open { display: block; }
+  .ms-search-wrap { padding: 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); }
+  .ms-search-wrap input { width: 100%; background: var(--surface); border: 1px solid var(--border2); border-radius: 5px; color: var(--ink); font-size: 12px; padding: 5px 8px; outline: none; }
+  .ms-option { display: flex; align-items: center; gap: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .ms-option:hover { background: var(--surface); }
+  .ms-option.all-opt { border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+  .ms-option input { accent-color: var(--accent); }
+  .ms-badge { display:inline-flex; align-items:center; justify-content:center; background: var(--accent-soft); color: var(--accent); border-radius: 10px; font-size: 10px; font-weight: 600; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 4px; }
+
+  .page-header { margin-bottom: 22px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 28px; }
+  .s-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .s-label { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 8px; }
+  .s-value { font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+  .s-change { font-size: 11px; font-weight: 500; margin-top: 6px; }
+  .s-change.good { color: var(--good); } .s-change.bad { color: var(--bad); } .s-change.flat { color: var(--muted); }
+
+  .tabs { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .tab-btn { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; margin-bottom: -1px; white-space: nowrap; }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--surface); white-space: nowrap; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 12.5px; }
+  tbody td:first-child { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface); }
+  tfoot td { padding: 9px 12px; font-weight: 700; background: var(--surface); border-top: 1px solid var(--border2); white-space: nowrap; font-size: 12.5px; }
+  th[data-r], td[data-r] { text-align: right; }
+  tr.hl td { background: var(--accent-soft); }
+  tr.click { cursor: pointer; }
+
+  .cf-green { color: var(--good) !important; font-weight: 600; }
+  .cf-yellow { color: var(--warn) !important; font-weight: 600; }
+  .cf-red { color: var(--bad) !important; font-weight: 600; }
+
+  .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; display: block; }
+  .thumb-ph { width: 44px; height: 44px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; color: var(--faint); }
+  .preview-col { width: 60px; }
+  .thumb-wrap { position: relative; display: inline-block; }
+  .play-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal-box { background: var(--bg); border: 1px solid var(--border2); border-radius: 12px; padding: 20px; max-width: 680px; width: 92%; position: relative; }
+  .modal-close { position: absolute; top: 10px; right: 14px; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
+  .modal-img, .modal-video { width: 100%; border-radius: 8px; display: block; max-height: 75vh; background: #000; }
+  .modal-name { font-size: 11px; color: var(--muted); margin-top: 12px; word-break: break-all; }
+
+  .status { padding: 44px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .status.err { color: var(--bad); }
+  .dot-loader { display: inline-flex; gap: 5px; margin-right: 6px; }
+  .dot-loader span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite both; }
+  .dot-loader span:nth-child(2) { animation-delay: 0.2s; } .dot-loader span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+  /* ── Benchmarks ────────────────────────────────────────────────── */
+  .bench-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-items: end; margin: 18px 0 8px; }
+  .bench-filters label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .bench-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 4px; }
+  .pos-svg { display: block; }
+  .verdict { font-size: 12px; }
+  .verdict.good { color: var(--good); } .verdict.bad { color: var(--bad); } .verdict.mid { color: var(--muted); }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; position: relative; }
+  .chart-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .legend i.band { height: 10px; border: none; background: var(--band); }
+  .legend i.sw { width: 10px; height: 10px; border: none; border-radius: 3px; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); display: none; z-index: 5; min-width: 160px; }
+  .tooltip b { display: block; margin-bottom: 4px; }
+  .tooltip .row { display: flex; justify-content: space-between; gap: 14px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+
+  footer { padding: 18px 28px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; background: var(--bg); }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .topbar { padding: 0 16px; gap: 10px; }
+    .viewtab { padding: 14px 10px 12px; }
+    .topbar-right { margin-left: 0; width: 100%; padding-bottom: 10px; }
+    .client-pick select { min-width: 0; width: 100%; }
+    .client-pick { flex: 1; display: flex; align-items: center; }
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    .main, .page { padding: 20px 16px; }
+    .market-nav { padding: 0 16px; }
+    footer { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><strong>Paid media</strong> <em>benchmarks</em><span class="badge-int">Internal</span></div>
+  <nav class="viewtabs">
+    <button class="viewtab active" data-view="client">Client report</button>
+    <button class="viewtab" data-view="bench">Benchmarks</button>
+    <button class="viewtab" data-view="overview">Overview</button>
+    <button class="viewtab" data-view="setup">Setup</button>
+  </nav>
+  <div class="topbar-right">
+    <div class="client-pick"><label for="client-select">Client</label><select id="client-select"></select></div>
+    <button class="theme-btn" id="theme-btn" title="Switch light / dark">Theme</button>
+  </div>
+</header>
+
+<!-- ═════════ CLIENT REPORT ═════════ -->
+<section class="view active" id="view-client">
+  <nav class="market-nav" id="market-nav"></nav>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="section-label">Date range</div>
+      <div class="date-presets">
+        <button class="preset-btn" data-preset="7">7d</button>
+        <button class="preset-btn active" data-preset="14">14d</button>
+        <button class="preset-btn" data-preset="30">30d</button>
+        <button class="preset-btn" data-preset="mtd">MTD</button>
+      </div>
+      <div class="filter-block"><label for="date-from">From</label><input type="date" id="date-from" /></div>
+      <div class="filter-block"><label for="date-to">To</label><input type="date" id="date-to" /></div>
+      <div class="section-label">Filters</div>
+      <div class="filter-block"><label>Campaign</label><div class="ms-wrap" id="ms-campaign"></div></div>
+      <div class="filter-block"><label>Creative name</label><div class="ms-wrap" id="ms-creative"></div></div>
+      <div class="filter-block"><label>Creative format</label><div class="ms-wrap" id="ms-format"></div></div>
+      <div class="filter-block"><label>Copy name</label><div class="ms-wrap" id="ms-copy"></div></div>
+      <div class="filter-block"><label>Landing page</label><div class="ms-wrap" id="ms-lp"></div></div>
+      <div class="filter-block"><label>Product</label><div class="ms-wrap" id="ms-product"></div></div>
+      <div class="filter-block"><label>Creative batch</label><div class="ms-wrap" id="ms-batch"></div></div>
+      <div class="filter-block"><label>Creator vs BAU</label><div class="ms-wrap" id="ms-creatorType"></div></div>
+      <div style="height:14px"></div>
+      <button class="btn" id="fetch-btn">Fetch data</button>
+      <p class="hint" style="margin-top:10px">Attribution: 7-day click + 1-day view. All money shown in GBP.</p>
+    </aside>
+    <main class="main">
+      <div class="page-header">
+        <h2 class="title" id="client-title"><strong>Performance</strong> <em>report</em></h2>
+        <div class="sub" id="page-sub">Pick a client to start</div>
+      </div>
+      <div class="summary-grid" id="summary-grid" style="display:none"></div>
+      <div id="tabs-area" style="display:none">
+        <div class="tabs" id="report-tabs">
+          <button class="tab-btn active" data-tab="day">By day</button>
+          <button class="tab-btn" data-tab="week">By week</button>
+          <button class="tab-btn" data-tab="campaign">By campaign</button>
+          <button class="tab-btn" data-tab="creative">By creative</button>
+          <button class="tab-btn" data-tab="copy">By copy</button>
+          <button class="tab-btn" data-tab="lp">By landing page</button>
+          <button class="tab-btn" data-tab="product">By product</button>
+          <button class="tab-btn" data-tab="batch">By creative batch</button>
+          <button class="tab-btn" data-tab="creatorType">Creator vs BAU</button>
+        </div>
+        <div id="table-area"></div>
+      </div>
+      <div class="status" id="status-msg">Loading…</div>
+    </main>
+  </div>
+</section>
+
+<!-- ═════════ BENCHMARKS ═════════ -->
+<section class="view" id="view-bench">
+  <div class="page">
+    <h2 class="title"><strong>Industry</strong> <em>benchmarks</em></h2>
+    <div class="sub" id="bench-sub">Compare the selected client with peer clients. Peers exclude the selected client.</div>
+
+    <div class="bench-filters">
+      <div><label for="bf-platform">Platform</label>
+        <select class="ctl" id="bf-platform"><option value="meta">Meta</option><option value="google">Google Ads</option></select></div>
+      <div><label for="bf-period">Period</label>
+        <select class="ctl" id="bf-period">
+          <option value="1">Last full month</option>
+          <option value="3" selected>Last 3 full months</option>
+          <option value="6">Last 6 full months</option>
+          <option value="12">Last 12 full months</option>
+        </select></div>
+      <div><label for="bf-industry">Industry</label><select class="ctl" id="bf-industry"></select></div>
+      <div><label for="bf-sub">Sub-vertical</label><select class="ctl" id="bf-sub"></select></div>
+      <div><label>Market</label><div class="ms-wrap" id="bf-market"></div></div>
+      <div><label for="bf-model">Business model</label><select class="ctl" id="bf-model"></select></div>
+      <div><label for="bf-aov">AOV band</label><select class="ctl" id="bf-aov"></select></div>
+      <div><label for="bf-objective" id="bf-objective-label">Campaign objective</label><select class="ctl" id="bf-objective"></select></div>
+      <div><button class="btn" id="bench-load" style="width:100%">Load benchmarks</button></div>
+    </div>
+    <div class="bench-meta" id="bench-meta"></div>
+    <div id="bench-status" class="status">Choose filters and click Load benchmarks.</div>
+
+    <div id="bench-body" style="display:none">
+      <h3 class="sec"><strong>Client</strong> <em>vs peers</em></h3>
+      <div class="table-wrap"><table id="bench-table"></table></div>
+      <p class="hint" style="margin-top:8px" id="bench-rules"></p>
+
+      <h3 class="sec"><strong>Monthly</strong> <em>trend</em></h3>
+      <div class="chart-card" id="trend-card">
+        <div class="chart-head">
+          <select class="ctl" id="trend-metric" style="width:auto"></select>
+          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average</span><span><i class="band"></i>Typical range (lower-half to upper-half average)</span></div>
+          <button class="btn ghost" id="trend-table-btn" style="margin-left:auto;padding:6px 10px;font-size:12px">Show table</button>
+        </div>
+        <div id="trend-chart"></div>
+        <div id="trend-table" style="display:none;margin-top:10px"></div>
+        <div class="tooltip" id="trend-tip"></div>
+      </div>
+
+      <h3 class="sec"><strong>Industry</strong> <em>overview</em></h3>
+      <p class="hint" style="margin-bottom:8px">Average client by industry, using the market, model, AOV and objective filters above. Unlike the table above, this includes the selected client. "Qualifying clients" is how many meet the minimum spend, out of all clients with any spend; purchase metrics also need a minimum number of purchases, so they can have fewer. Click a row to filter to that industry.</p>
+      <div class="table-wrap"><table id="industry-table"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ OVERVIEW ═════════ -->
+<section class="view" id="view-overview">
+  <div class="page">
+    <h2 class="title"><strong>Cost</strong> <em>overview</em></h2>
+    <div class="sub">Monthly spend across Meta and Google Ads, converted to GBP.</div>
+    <div class="bench-filters">
+      <div><label for="ov-scope">Scope</label>
+        <select class="ctl" id="ov-scope"><option value="client">Selected client</option><option value="all">All clients</option></select></div>
+      <div><label for="ov-period">Period</label>
+        <select class="ctl" id="ov-period">
+          <option value="3">Last 3 full months</option>
+          <option value="6">Last 6 full months</option>
+          <option value="12" selected>Last 12 full months</option>
+        </select></div>
+      <div><button class="btn" id="ov-load" style="width:100%">Load Meta data</button></div>
+    </div>
+    <div class="bench-meta" id="ov-meta"></div>
+    <div id="ov-status" class="status" style="display:none"></div>
+    <div id="ov-body" style="display:none">
+      <div class="summary-grid" id="ov-kpis" style="margin-top:14px"></div>
+      <div class="chart-card" id="ov-card">
+        <div class="chart-head">
+          <div><strong>Spend</strong> <em style="font-weight:300">by channel and month</em></div>
+          <div class="legend" id="ov-legend"></div>
+        </div>
+        <div id="ov-chart"></div>
+        <div class="tooltip" id="ov-tip"></div>
+      </div>
+      <h3 class="sec"><strong>Monthly</strong> <em>spend table</em></h3>
+      <div class="table-wrap"><table id="ov-table"></table></div>
+      <p class="hint" style="margin-top:8px" id="ov-notes"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ SETUP ═════════ -->
+<section class="view" id="view-setup">
+  <div class="page" id="setup-page"></div>
+</section>
+
+<footer>This Is Gain Ltd <span id="yr">2026</span> · <a href="https://thisisgain.com" target="_blank" rel="noopener">thisisgain.com</a></footer>
+
+<div class="modal-bg" id="modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close">&#215;</button>
+    <div id="modal-media"></div>
+    <div class="modal-name" id="modal-name"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIG — the only section you need to edit
+// ═══════════════════════════════════════════════════════════════════
+const CONFIG = {
+  // Leave both blank to load the lookup CSVs from your computer on the Setup tab
+  // (kept in this browser only, never uploaded). Or set them to file paths / URLs.
+  ACCOUNTS_CSV_URL: '',
+  FX_CSV_URL:       '',
+
+  GRAPH_VERSION: 'v26.0',                 // Meta Graph API version (v26 released Jul 2026); update when Meta retires it
+  ATTRIBUTION: ['7d_click', '1d_view'],   // same window for every account
+
+  // Benchmark rules
+  AGENCY_BUSINESS_NAMES: ['This is GAIN'],  // owning businesses that are us, not the client
+  SUGGEST_DAYS: 90,            // look-back for suggested market / model / AOV band
+  MARKET_SHARE: 0.75,          // top country needs this share of spend, else Multi-market
+  MIN_CLIENTS: 4,              // hide a benchmark unless at least this many peer clients qualify
+  IN_LINE_BAND: 0.05,          // within ±5% of the peer average reads as "in line"
+  MIN_PER_HALF: 2,             // typical range needs this many clients in each half (so 4+ peers)
+  MIN_SPEND_GBP: 500,          // a peer needs this much spend in the period to count
+  MIN_PURCHASES: 5,           // ...and this many purchases for purchase-based metrics
+  MIN_SPEND_GBP_MONTH: 200,    // monthly trend: per-month minimums
+  MIN_PURCHASES_MONTH: 5,
+  CONCURRENCY: 5,              // parallel Meta requests
+  CACHE_HOURS: 12,
+};
+
+const BASE = `https://graph.facebook.com/${CONFIG.GRAPH_VERSION}`;
+const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
+const REQUIRED = ['client', 'industry', 'model'];  // market is optional: benchmarks use delivery country
+const REQUIRED_LABEL = { client: 'client', industry: 'industry', model: 'business_model', market: 'market' };
+const FILTER_KEYS = ['campaign','creative','format','copy','lp','product','batch','creatorType'];
+
+// ── Small helpers ─────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function safe(a,b){ return b ? a/b : null; }
+function num(s){ const n = parseFloat(String(s ?? '').replace(/[^0-9.\-]/g,'')); return isFinite(n) ? n : null; }
+function isoDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function parseISO(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+const store = {
+  get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { console.warn('Cache save failed', e); } },
+};
+async function pool(items, n, fn){
+  let i = 0;
+  await Promise.all(Array.from({length: Math.min(n, items.length)}, async () => {
+    while (i < items.length) { const it = items[i++]; await fn(it); }
+  }));
+}
+function setText(id, t){ const el = $(id); if (el) el.textContent = t; }
+
+// Formatting
+function fmt(n, d=0){ if (n == null || isNaN(n)) return '—'; return Number(n).toLocaleString('en-GB', {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function fmtGBP(n){ return (n == null || isNaN(n)) ? '—' : '£' + fmt(n, 2); }
+function fmtP(n){ return (n == null || isNaN(n)) ? '—' : fmt(n, 2) + '%'; }
+function fmtX(n){ return (n == null || isNaN(n)) ? '—' : fmt(n, 2) + '×'; }
+function fmtN(n){ return fmt(n, 0); }
+
+function flagFor(code){
+  const c = (code || '').toUpperCase();
+  if (c === 'GLOBAL' || c === 'MULTI-MARKET') return '🌐';
+  const iso = c === 'UK' ? 'GB' : c;
+  if (!/^[A-Z]{2}$/.test(iso)) return '';
+  return String.fromCodePoint(...[...iso].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+}
+
+// ── Theme toggle ──────────────────────────────────────────────────
+(function initTheme(){
+  const saved = store.get('mb_theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  $('theme-btn').addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme')
+      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    store.set('mb_theme', next);
+    if (benchReady()) renderTrend();
+  });
+  $('yr').textContent = new Date().getFullYear();
+})();
+
+// ── Access token (read from ?token=, then removed from the address bar) ──
+const TOKEN = (() => {
+  let t = '';
+  try {
+    const u = new URL(location.href);
+    t = u.searchParams.get('token') || '';
+    if (t) {
+      sessionStorage.setItem('mb_token', t);
+      u.searchParams.delete('token');
+      history.replaceState(null, '', u.toString());
+    } else {
+      t = sessionStorage.getItem('mb_token') || '';
+    }
+  } catch {}
+  return t;
+})();
+
+// ── Graph API ─────────────────────────────────────────────────────
+async function graphGet(path, params = {}){
+  const qs = new URLSearchParams({ ...params, access_token: TOKEN });
+  const r = await fetch(`${BASE}/${path}?${qs}`);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message);
+  return j;
+}
+async function fetchAllPages(path, params = {}){
+  const first = await graphGet(path, params);
+  let all = first.data || [];
+  let next = first.paging?.next, guard = 0;
+  while (next && guard < 100) {
+    guard++;
+    const url = next.includes('access_token=') ? next : next + (next.includes('?') ? '&' : '?') + 'access_token=' + encodeURIComponent(TOKEN);
+    const j = await (await fetch(url)).json();
+    if (j.error) throw new Error(j.error.message);
+    all = all.concat(j.data || []);
+    next = j.paging?.next || null;
+  }
+  return all;
+}
+const ATTR_PARAMS = {
+  action_attribution_windows: JSON.stringify(CONFIG.ATTRIBUTION),
+  use_unified_attribution_setting: false,
+};
+// Value of an action under the configured windows. Meta attributes each conversion to
+// one window only (click beats view), so summing the windows does not double count.
+function winValue(a){
+  let s = 0, any = false;
+  CONFIG.ATTRIBUTION.forEach(w => { if (a[w] != null) { s += parseFloat(a[w]) || 0; any = true; } });
+  return any ? s : (parseFloat(a.value) || 0);
+}
+function actionVal(list, types){
+  if (!list) return 0;
+  for (const t of types) { const a = list.find(x => x.action_type === t); if (a) return winValue(a); }
+  return 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  LOOKUP SHEET
+// ═══════════════════════════════════════════════════════════════════
+const S = { accounts: [], byId: {}, fx: {}, loadedAt: null, error: null, fxError: null, dupes: [] };
+const META = { byId: {}, listed: [], listError: null };
+
+function parseCSV(text){
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i+1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; }
+    else if (c !== '\r') f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+function csvObjects(text){
+  const r = parseCSV(text); if (!r.length) return [];
+  const h = r[0].map(x => x.trim().toLowerCase());
+  return r.slice(1).map(a => Object.fromEntries(h.map((k,i) => [k, (a[i] || '').trim()])));
+}
+function urlSet(u){ return u && !u.startsWith('PASTE'); }
+
+// Lookup files chosen on the Setup tab are kept in this browser's storage only.
+const LOCAL_KEYS = { accounts: 'pm_accounts_csv', fx: 'pm_fx_csv', google: 'pm_google_csv' };  // pm_ = paid-media dashboard, kept separate from the Meta-only one
+
+// Larger files (the Google data export) go in IndexedDB, which allows far more space than localStorage.
+const bigStore = {
+  db: null,
+  async open(){
+    if (this.db) return this.db;
+    this.db = await new Promise((res, rej) => {
+      const r = indexedDB.open('paid-media-benchmarks', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('files');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    return this.db;
+  },
+  async get(k){ try { const db = await this.open(); return await new Promise(res => { const q = db.transaction('files').objectStore('files').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch { return store.get(k); } },
+  async set(k, v){ try { const db = await this.open(); await new Promise((res, rej) => { const t = db.transaction('files', 'readwrite'); t.objectStore('files').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); return true; } catch { store.set(k, v); return store.get(k)?.text === v.text; } },
+  async del(k){ try { const db = await this.open(); await new Promise(res => { const t = db.transaction('files', 'readwrite'); t.objectStore('files').delete(k); t.oncomplete = res; t.onerror = res; }); } catch {} try { localStorage.removeItem(k); } catch {} },
+};
+
+// ── Google Ads data (export of the "Google data" tab written by the Google Ads script)
+const GD = { byId: {}, loadedAt: null, source: null, error: null, months: [] };
+async function loadGoogle(){
+  GD.byId = {}; GD.loadedAt = null; GD.source = null; GD.error = null; GD.months = [];
+  const src = await bigStore.get(LOCAL_KEYS.google);
+  if (!src || !src.text) return;
+  GD.source = src;
+  const rows = csvObjects(src.text);
+  if (rows.length && !('customer_id' in rows[0])) { GD.error = 'The Google file has no customer_id column. Export the "Google data" tab.'; return; }
+  const months = new Set();
+  rows.forEach(o => {
+    const id = (o.customer_id || '').replace(/\D/g, ''); if (!id) return;
+    const acc = GD.byId[id] || (GD.byId[id] = { name: o.account_name || '', currency: (o.currency || '').toUpperCase(), rows: [] });
+    const month = (o.month || '').slice(0, 7); if (!month) return;
+    months.add(month);
+    acc.rows.push({ month, objective: o.channel || 'UNKNOWN', country: countryToMarket(o.country),
+      spend: num(o.cost) || 0, impressions: num(o.impressions) || 0, clicks: num(o.clicks) || 0,
+      purchases: num(o.purchases) || 0, revenue: num(o.purchase_value) || 0, cc: 0 });
+  });
+  GD.months = [...months].sort();
+  GD.data = Object.fromEntries(Object.entries(GD.byId).map(([k, v]) => [k, v.rows]));
+  GD.loadedAt = new Date();
+}
+function countryToMarket(c){ const u = (c || '').toUpperCase(); return u === 'GB' ? 'UK' : (u || 'Unknown'); }
+// Platform: the sheet's platform column wins; otherwise Google IDs look like 123-456-7890 (10 digits)
+function platformOf(a){
+  if (!a) return 'meta';
+  if (/^g/i.test(a.platformRaw || '')) return 'google';
+  if (/^(m|f)/i.test(a.platformRaw || '')) return 'meta';
+  return (/^\d{3}-\d{3}-\d{4}$/.test(a.rawId || '') || (a.id || '').length === 10) ? 'google' : 'meta';
+}
+async function readSource(url, key){
+  const local = store.get(key);
+  if (local && local.text) return { text: local.text, name: local.name, savedAt: local.savedAt, from: 'file' };
+  if (urlSet(url)) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`Could not read ${url} (HTTP ${r.status}).`);
+    return { text: await r.text(), name: url, from: 'url' };
+  }
+  return null;
+}
+async function loadFX(){
+  S.fx = { GBP: 1 }; S.fxError = null;
+  S.fxSource = null;
+  try {
+    const fs = await readSource(CONFIG.FX_CSV_URL, LOCAL_KEYS.fx);
+    if (fs) {
+      S.fxSource = fs;
+      csvObjects(fs.text).forEach(o => {
+        const c = (o.currency || '').toUpperCase(), v = num(o.rate_to_gbp);
+        if (c && v > 0) S.fx[c] = v;
+      });
+    } else S.fxError = 'No fx.csv loaded, so only GBP accounts can be converted.';
+  } catch(e) { S.fxError = 'Could not read the FX file: ' + e.message; }
+}
+async function loadSheet(){
+  await loadFX();
+  const src = await readSource(CONFIG.ACCOUNTS_CSV_URL, LOCAL_KEYS.accounts);
+  if (!src) throw new Error('No lookup file loaded yet. On the Setup tab, choose your accounts.csv and fx.csv exports.');
+  S.source = src;
+  const rows = csvObjects(src.text);
+  if (rows.length && !('account_id' in rows[0])) throw new Error('The accounts file has no account_id column. Export the Accounts tab of the lookup sheet.');
+  const seen = {};
+  S.accounts = rows.map(o => ({
+    id: (o.account_id || '').replace(/\D/g, ''), rawId: (o.account_id || '').trim(), platformRaw: o.platform || '',
+    label: o.account_name || '',
+    client: o.client || '', industry: o.industry || '', sub: o.sub_vertical || '',
+    model: o.business_model || '', market: (o.market || '').trim(), aov: o.aov_band || '',
+    include: /^y/i.test(o.include_in_benchmarks || ''),
+    includeRaw: o.include_in_benchmarks || '',
+    ccId: (o.custom_conversion_id || '').replace(/\D/g, ''),
+    ccLabel: o.custom_conversion_label || 'Custom conv.',
+    ccTarget: num(o.custom_conversion_target_gbp),
+    notes: o.notes || '',
+  })).filter(a => a.id);
+  S.dupes = [];
+  S.accounts.forEach(a => {
+    a.platform = platformOf(a);
+    a.missing = REQUIRED.filter(k => !a[k]).map(k => REQUIRED_LABEL[k]);
+    if (!a.includeRaw) a.missing.push('include_in_benchmarks');
+    if (seen[a.id]) S.dupes.push(a.id); seen[a.id] = true;
+  });
+  S.byId = {}; S.accounts.forEach(a => { if (!S.byId[a.id]) S.byId[a.id] = a; });
+
+  S.loadedAt = new Date();
+}
+
+const ACCT_FIELDS_BASIC = 'account_id,name,currency,account_status';
+let ACCT_FIELDS = ACCT_FIELDS_BASIC + ',business{name}';
+async function loadMetaAccounts(){
+  META.byId = {}; META.listed = []; META.listError = null;
+  try {
+    // business{name} needs the business_management permission; fall back without it
+    let list;
+    try { list = await fetchAllPages('me/adaccounts', { fields: ACCT_FIELDS, limit: 200 }); }
+    catch(e) {
+      if (!/business_management/i.test(e.message) || ACCT_FIELDS === ACCT_FIELDS_BASIC) throw e;
+      ACCT_FIELDS = ACCT_FIELDS_BASIC; META.noBusiness = true;
+      list = await fetchAllPages('me/adaccounts', { fields: ACCT_FIELDS, limit: 200 });
+    }
+    list.forEach(a => {
+      META.byId[a.account_id] = { name: a.name, currency: a.currency, status: a.account_status, business: a.business?.name || '', listed: true };
+      META.listed.push(a.account_id);
+    });
+  } catch(e) { META.listError = e.message; }
+  const missing = S.accounts.filter(a => a.platform === 'meta' && !META.byId[a.id]);
+  await pool(missing, CONFIG.CONCURRENCY, async a => {
+    try {
+      const j = await graphGet('act_' + a.id, { fields: ACCT_FIELDS });
+      META.byId[a.id] = { name: j.name, currency: j.currency, status: j.account_status, business: j.business?.name || '', listed: false };
+    } catch(e) { META.byId[a.id] = { error: e.message }; }
+  });
+}
+
+function currencyOf(id){ return (S.byId[id]?.platform === 'google' ? GD.byId[id]?.currency : META.byId[id]?.currency) || ''; }
+function rateFor(id){ const c = currencyOf(id); return c ? S.fx[c.toUpperCase()] : undefined; }
+function accessible(id){
+  if (S.byId[id]?.platform === 'google') return !!GD.byId[id];
+  const m = META.byId[id]; return !!(m && !m.error);
+}
+function acctName(a){ return a.label || META.byId[a.id]?.name || ('act_' + a.id); }
+function isComplete(a){ return a.missing.length === 0; }
+function benchEligible(a){ return isComplete(a) && a.include && accessible(a.id) && rateFor(a.id) != null; }
+function clients(){ return [...new Set(S.accounts.map(a => a.client).filter(Boolean))].sort((x,y) => x.localeCompare(y)); }
+function clientAccounts(c, plat){ return S.accounts.filter(a => a.client === c && S.byId[a.id] === a && (!plat || a.platform === plat)); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  APP STATE + VIEW SWITCHING
+// ═══════════════════════════════════════════════════════════════════
+let currentView = 'client';
+let currentClient = null;
+let currentAccountId = null;
+
+document.querySelectorAll('.viewtab').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+function showView(v){
+  currentView = v;
+  document.querySelectorAll('.viewtab').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+  if (v === 'setup') renderSetup();
+  if (v === 'bench') { if (benchReady()) renderBench(); }
+  if (v === 'overview') renderOverview();
+}
+
+function buildClientPicker(){
+  const sel = $('client-select');
+  const cs = clients();
+  sel.innerHTML = cs.length ? cs.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+                            : '<option value="">No clients in sheet yet</option>';
+  const saved = store.get('mb_client');
+  currentClient = cs.includes(saved) ? saved : (cs[0] || null);
+  if (currentClient) sel.value = currentClient;
+}
+$('client-select').addEventListener('change', e => {
+  currentClient = e.target.value; store.set('mb_client', currentClient);
+  onClientChange();
+});
+function onClientChange(){
+  buildMarketNav();
+  resetBenchFiltersForClient();
+  if (benchReady()) renderBench();
+  if (currentView === 'setup') renderSetup();
+  if (currentView === 'overview') renderOverview();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CLIENT REPORT
+// ═══════════════════════════════════════════════════════════════════
+const acctState = {};
+function curAcct(){ return S.byId[currentAccountId]; }
+function getState(){
+  const id = currentAccountId || '_none';
+  if (!acctState[id]) acctState[id] = { rawData: [], adIdsByCreative: {}, creativeCache: {}, currentTab: 'day', selections: Object.fromEntries(FILTER_KEYS.map(k => [k, new Set()])), comp: {} };
+  return acctState[id];
+}
+function AD_ACCOUNT_ID(){ return currentAccountId; }
+function toGBP(n){ if (n == null) return null; const r = rateFor(currentAccountId); return r == null ? null : n * r; }
+function fmtC(n){ return n == null || isNaN(n) ? '—' : fmtGBP(toGBP(n)); }
+
+function buildMarketNav(){
+  const nav = $('market-nav');
+  const accts = currentClient ? clientAccounts(currentClient, 'meta').sort((a,b) => a.market.localeCompare(b.market)) : [];
+  const counts = {}; accts.forEach(a => counts[a.market] = (counts[a.market] || 0) + 1);
+  nav.innerHTML = accts.map(a => {
+    const extra = counts[a.market] > 1 ? ' · ' + esc(acctName(a)) : '';
+    return `<button class="market-btn" data-acct="${a.id}"><span class="market-flag">${flagFor(a.market)}</span>${esc(a.market || '—')}${extra}</button>`;
+  }).join('');
+  nav.querySelectorAll('.market-btn').forEach(b => b.addEventListener('click', () => switchAccount(b.dataset.acct)));
+  if (!accts.length) {
+    currentAccountId = null;
+    hideReport();
+    setStatus(currentClient ? 'This client has no Meta accounts in the sheet. Google results are on the Benchmarks and Overview tabs.' : 'Add clients to the lookup sheet to start.', true);
+    $('client-title').innerHTML = '<strong>Performance</strong> <em>report</em>';
+    return;
+  }
+  const keep = accts.find(a => a.id === currentAccountId);
+  currentAccountId = null;
+  switchAccount(keep ? keep.id : accts[0].id);
+}
+
+function switchAccount(id){
+  if (id === currentAccountId) return;
+  currentAccountId = id;
+  document.querySelectorAll('.market-btn').forEach(b => b.classList.toggle('active', b.dataset.acct === id));
+  const a = curAcct();
+  $('client-title').innerHTML = `<strong>${esc(a.client)}</strong> <em>${flagFor(a.market)} ${esc(a.market)} performance</em>`;
+  FILTER_KEYS.forEach(k => buildDropdown(k, []));
+  syncTabButtons();
+  const s = getState();
+  if (!accessible(id)) { hideReport(); setStatus(`Your token can't read act_${esc(id)}: ${esc(META.byId[id]?.error || 'no access')}`, true); return; }
+  if (rateFor(id) == null) { hideReport(); setStatus(`No FX rate for this account's currency (${esc(META.byId[id]?.currency || '?')}). Add it to the FX tab.`, true); return; }
+  if (s.rawData.length) { populateDropdowns(); renderAll(); }
+  else fetchData(false);
+}
+
+function hideReport(){ $('summary-grid').style.display = 'none'; $('tabs-area').style.display = 'none'; }
+
+// ── Ad name parser (Market_AudienceType_Audience_Placement_Gender_Age_Creative_Format_Copy_OS_Opt_LP_Bid_ProductSet_Source)
+function parseAdName(n){
+  if (!n) return { creative:'', format:'', copy:'', lp:'', product:'', batch:'', creatorType:'BAU' };
+  const p = n.split('_');
+  const creativeName = p[6] || '';
+  const cp = creativeName.split('-');
+  return {
+    creative: creativeName, format: p[7] || '', copy: p[8] || '', lp: p[11] || '',
+    product: cp[2] || '', batch: cp[3] || '',
+    creatorType: creativeName.toLowerCase().includes('contentcreator') ? 'Content Creator' : 'BAU',
+  };
+}
+
+// ── Dates
+function applyPreset(preset, refetch = true){
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  let from;
+  if (preset === 'mtd') from = new Date(today.getFullYear(), today.getMonth(), 1);
+  else { from = new Date(yesterday); from.setDate(yesterday.getDate() - (Number(preset) - 1)); }
+  if (from > yesterday) from = new Date(yesterday);
+  $('date-from').value = isoDate(from);
+  $('date-to').value = isoDate(yesterday);
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === String(preset)));
+  if (refetch && getState().rawData.length) fetchData(true);
+}
+document.querySelectorAll('.preset-btn').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
+['date-from','date-to'].forEach(id => $(id).addEventListener('change', () => {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (getState().rawData.length) fetchData(true);
+}));
+applyPreset(14, false);
+
+function getPrevPeriod(df, dt){
+  const start = parseISO(df), end = parseISO(dt);
+  const days = Math.round((end - start) / 86400000) + 1;
+  const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - (days - 1));
+  return { df: isoDate(prevStart), dt: isoDate(prevEnd) };
+}
+function datesBetween(df, dt){
+  const out = [], cur = parseISO(df), end = parseISO(dt);
+  while (cur <= end) { out.push(isoDate(cur)); cur.setDate(cur.getDate() + 1); }
+  return out;
+}
+
+// Ad-level daily rows, one request per day (avoids the per-request row cap), 10 days at a time
+async function fetchDays(df, dt, onProgress){
+  const dates = datesBetween(df, dt);
+  let all = [];
+  for (let i = 0; i < dates.length; i += 10) {
+    if (onProgress) onProgress(Math.round(i / dates.length * 100));
+    const res = await Promise.all(dates.slice(i, i + 10).map(d =>
+      fetchAllPages(`act_${AD_ACCOUNT_ID()}/insights`, {
+        level: 'ad', time_increment: 1,
+        time_range: JSON.stringify({ since: d, until: d }),
+        fields: 'date_start,campaign_name,ad_name,ad_id,spend,impressions,inline_link_clicks,actions,action_values',
+        ...ATTR_PARAMS, limit: 500,
+      }).catch(e => { console.warn('Failed day', d, e); return []; })
+    ));
+    all = all.concat(...res);
+  }
+  return all;
+}
+function mapAdRow(row, acct){
+  const p = parseAdName(row.ad_name);
+  return {
+    date: row.date_start, campaign: row.campaign_name || '', adId: row.ad_id || '', ...p,
+    spend: parseFloat(row.spend) || 0, impressions: parseInt(row.impressions) || 0, clicks: parseInt(row.inline_link_clicks) || 0,
+    purchases: actionVal(row.actions, PURCHASE_TYPES),
+    revenue: actionVal(row.action_values, PURCHASE_TYPES),
+    cc: acct.ccId ? actionVal(row.actions, ['offsite_conversion.custom.' + acct.ccId]) : 0,
+  };
+}
+
+// Totals + derived metrics (shared by client report and benchmarks)
+function zero(){ return { spend:0, impressions:0, clicks:0, purchases:0, revenue:0, cc:0 }; }
+function addTo(t, r, rate = 1){ t.spend += (r.spend||0)*rate; t.impressions += r.impressions||0; t.clicks += r.clicks||0; t.purchases += r.purchases||0; t.revenue += (r.revenue||0)*rate; t.cc += r.cc||0; return t; }
+function derive(t){
+  return { ...t,
+    cpm: safe(t.spend, t.impressions/1000), cpc: safe(t.spend, t.clicks), ctr: safe(t.clicks*100, t.impressions),
+    cpPurch: safe(t.spend, t.purchases), pCvr: safe(t.purchases*100, t.clicks),
+    roas: safe(t.revenue, t.spend), aov: safe(t.revenue, t.purchases),
+    cpcc: safe(t.spend, t.cc), ccCvr: safe(t.cc*100, t.clicks), ccPct: safe(t.cc*100, t.purchases),
+  };
+}
+function summarise(rows){ const t = zero(); rows.forEach(r => addTo(t, r)); return derive(t); }
+
+function CACHE_KEY(){ return `mb_report_${AD_ACCOUNT_ID()}_${CONFIG.ATTRIBUTION.join('+')}`; }
+
+async function fetchData(force = false){
+  if (!TOKEN) { setStatus('No access token found. Open this page with ?token=YOUR_TOKEN on the end of the address, or add one on the Setup tab.', true); return; }
+  const acct = curAcct(); if (!acct) return;
+  const df = $('date-from').value, dt = $('date-to').value;
+  if (!df || !dt) { setStatus('Please select both dates.', true); return; }
+  const btn = $('fetch-btn'); btn.disabled = true; btn.textContent = 'Loading…';
+  hideReport();
+  const s = getState(); s.creativeCache = {}; s.adIdsByCreative = {};
+  const myId = currentAccountId;
+  const m = META.byId[myId] || {};
+
+  try {
+    const cached = !force && store.get(CACHE_KEY());
+    if (cached && cached.df === df && cached.dt === dt && Date.now() - cached.savedAt < CONFIG.CACHE_HOURS * 3600e3) {
+      s.rawData = cached.rows;
+      setText('page-sub', `${acctName(acct)} · ${m.currency || ''} → GBP · ${df} → ${dt} · ${s.rawData.length} rows · cached`);
+    } else {
+      setStatus('<div class="dot-loader"><span></span><span></span><span></span></div> Fetching data…');
+      const rows = await fetchDays(df, dt, pct => { if (currentAccountId === myId) setStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching data… ${pct}%`); });
+      s.rawData = rows.map(r => mapAdRow(r, acct));
+      if (s.rawData.length) store.set(CACHE_KEY(), { df, dt, rows: s.rawData, savedAt: Date.now() });
+      setText('page-sub', `${acctName(acct)} · ${m.currency || ''} → GBP · ${df} → ${dt} · ${s.rawData.length} rows · updated ${new Date().toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}`);
+    }
+    if (currentAccountId !== myId) return;
+    s.rawData.forEach(r => { if (r.creative && r.adId && !s.adIdsByCreative[r.creative]) s.adIdsByCreative[r.creative] = r.adId; });
+    if (!s.rawData.length) { setStatus('No data returned for this date range.', true); return; }
+    populateDropdowns(); renderAll();
+    fetchComparisonPeriod(df, dt, myId);
+  } catch(e) { setStatus('Error: ' + esc(e.message), true); }
+  finally { btn.disabled = false; btn.textContent = 'Refresh'; }
+}
+$('fetch-btn').addEventListener('click', () => fetchData(true));
+
+async function fetchComparisonPeriod(df, dt, myId){
+  const prev = getPrevPeriod(df, dt), key = `${prev.df}_${prev.dt}`;
+  const s = getState();
+  if (s.comp[key]) { renderAll(); return; }
+  try {
+    const rows = await fetchDays(prev.df, prev.dt);
+    const acct = S.byId[myId];
+    acctState[myId].comp[key] = summarise(rows.map(r => mapAdRow(r, acct)));
+    if (currentAccountId === myId) renderAll();
+  } catch(e) { console.warn('Comparison fetch failed', e); }
+}
+function getComp(){ const p = getPrevPeriod($('date-from').value, $('date-to').value); return getState().comp[`${p.df}_${p.dt}`] || null; }
+
+// ── Columns
+function cols(){
+  const a = curAcct() || {};
+  const c = [
+    { k:'spend', l:'Spend', f:fmtC, dir:0 },
+    { k:'impressions', l:'Impressions', f:fmtN, dir:0 },
+    { k:'cpm', l:'CPM', f:fmtC, dir:-1 },
+    { k:'clicks', l:'Link clicks', f:fmtN, dir:1 },
+    { k:'cpc', l:'Cost / click', f:fmtC, dir:-1 },
+    { k:'ctr', l:'CTR', f:fmtP, dir:1 },
+    { k:'purchases', l:'Purchases', f:fmtN, dir:1 },
+    { k:'cpPurch', l:'Cost / purchase', f:fmtC, dir:-1 },
+    { k:'pCvr', l:'Purchase CVR', f:fmtP, dir:1 },
+    { k:'revenue', l:'Revenue', f:fmtC, dir:1 },
+    { k:'roas', l:'ROAS', f:fmtX, dir:1 },
+    { k:'aov', l:'AOV', f:fmtC, dir:1 },
+  ];
+  if (a.ccId) c.push(
+    { k:'cc', l:a.ccLabel, f:fmtN, dir:1 },
+    { k:'cpcc', l:'Cost / ' + a.ccLabel, f:fmtC, dir:-1 },
+    { k:'ccCvr', l:a.ccLabel + ' CVR', f:fmtP, dir:1 },
+    { k:'ccPct', l:'% of purchases', f:fmtP, dir:1 },
+  );
+  return c;
+}
+
+// ── Dropdowns
+function populateDropdowns(){
+  const s = getState();
+  FILTER_KEYS.forEach(k => { s.selections[k].clear(); buildDropdown(k, [...new Set(s.rawData.map(r => r[k]).filter(Boolean))].sort()); });
+}
+function buildDropdown(key, opts){
+  const wrap = $('ms-' + key); wrap.innerHTML = '';
+  const trigger = document.createElement('button');
+  trigger.className = 'ms-trigger'; trigger.id = 'mst-' + key; trigger.type = 'button'; trigger.textContent = 'All';
+  trigger.onclick = e => { e.stopPropagation(); toggleDD(key); };
+  wrap.appendChild(trigger);
+  const dd = document.createElement('div'); dd.className = 'ms-dropdown'; dd.id = 'msd-' + key; dd.onclick = e => e.stopPropagation();
+  if (opts.length > 5) {
+    const sw = document.createElement('div'); sw.className = 'ms-search-wrap';
+    const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'Search…';
+    inp.oninput = () => filterDD(key, inp.value); sw.appendChild(inp); dd.appendChild(sw);
+  }
+  const all = document.createElement('label'); all.className = 'ms-option all-opt';
+  all.innerHTML = `<input type="checkbox" id="ca-${key}" checked/><span>Select all</span>`;
+  all.querySelector('input').onchange = e => toggleAll(key, e.target.checked);
+  dd.appendChild(all);
+  opts.forEach(opt => {
+    const d = document.createElement('label'); d.className = 'ms-option'; d.dataset.value = opt;
+    d.innerHTML = `<input type="checkbox" checked/><span title="${esc(opt)}">${esc(opt)}</span>`;
+    d.querySelector('input').onchange = e => toggleOpt(key, opt, e.target.checked);
+    dd.appendChild(d);
+  });
+  wrap.appendChild(dd);
+  updateLabel(key, opts);
+}
+function toggleDD(key){
+  const dd = $('msd-' + key), tr = $('mst-' + key), open = dd.classList.contains('open');
+  closeAllDD();
+  if (!open) { dd.classList.add('open'); const r = tr.getBoundingClientRect(); dd.style.top = (r.bottom + 4) + 'px'; dd.style.left = r.left + 'px'; dd.style.width = Math.max(r.width, 200) + 'px'; }
+}
+function closeAllDD(){ document.querySelectorAll('.ms-dropdown.open').forEach(d => d.classList.remove('open')); }
+document.addEventListener('click', closeAllDD);
+function filterDD(key, q){ document.querySelectorAll(`#msd-${key} .ms-option:not(.all-opt)`).forEach(o => o.style.display = o.dataset.value.toLowerCase().includes(q.toLowerCase()) ? '' : 'none'); }
+function getAllOpts(key){ return [...document.querySelectorAll(`#msd-${key} .ms-option:not(.all-opt)`)].map(o => o.dataset.value); }
+function toggleAll(key, checked){
+  const sel = getState().selections[key]; sel.clear();
+  document.querySelectorAll(`#msd-${key} .ms-option:not(.all-opt) input`).forEach(cb => cb.checked = checked);
+  if (!checked) getAllOpts(key).forEach(v => sel.add(v));
+  updateLabel(key, getAllOpts(key)); if (getState().rawData.length) renderAll();
+}
+function toggleOpt(key, val, checked){
+  const sel = getState().selections[key];
+  if (checked) sel.delete(val); else sel.add(val);
+  const a = $('ca-' + key); if (a) a.checked = !sel.size;
+  updateLabel(key, getAllOpts(key)); if (getState().rawData.length) renderAll();
+}
+function updateLabel(key, opts){
+  const sel = getState().selections[key], t = $('mst-' + key); if (!t) return;
+  if (!sel.size || !opts.length) { t.textContent = 'All'; return; }
+  const active = opts.length - sel.size;
+  t.innerHTML = `${active} of ${opts.length} <span class="ms-badge">${active}</span>`;
+}
+function getFiltered(){
+  const s = getState();
+  return s.rawData.filter(r => FILTER_KEYS.every(k => !s.selections[k].size || !s.selections[k].has(r[k])));
+}
+
+// ── Conditional formatting
+function ccColor(gbp){
+  const t = curAcct()?.ccTarget; if (!t || gbp == null) return '';
+  if (gbp <= t) return 'cf-green'; if (gbp <= t * 1.05) return 'cf-yellow'; return 'cf-red';
+}
+function rankColor(v, all){
+  const s = all.filter(x => x > 0).sort((a,b) => a-b); if (!s.length) return '';
+  const lo = s[Math.floor(s.length * 0.33)], hi = s[Math.floor(s.length * 0.67)];
+  if (v >= hi) return 'cf-green'; if (v <= lo && v > 0) return 'cf-red'; return '';
+}
+
+// ── Render
+function aggregate(rows, keyFn, withAdId){
+  const map = {};
+  rows.forEach(r => { const k = keyFn(r); if (!map[k]) map[k] = { key: k, adId: withAdId ? r.adId : null, ...zero() }; addTo(map[k], r); });
+  return Object.values(map).map(g => ({ ...derive(g), key: g.key, adId: g.adId }));
+}
+function weekStart(s){ const d = parseISO(s); d.setDate(d.getDate() - d.getDay()); return isoDate(d); }
+
+function renderAll(){
+  const f = getFiltered();
+  renderSummary(f); renderTable(f, getState().currentTab);
+  $('summary-grid').style.display = 'grid'; $('tabs-area').style.display = 'block'; $('status-msg').style.display = 'none';
+}
+function changeTag(curr, prev, dir){
+  if (curr == null || !prev) return '';
+  const pct = (curr - prev) / prev * 100, abs = Math.abs(pct);
+  const cls = (abs < 0.5 || dir === 0) ? 'flat' : ((pct > 0) === (dir > 0) ? 'good' : 'bad');
+  return `<div class="s-change ${cls}">${pct >= 0 ? '▲ +' : '▼ −'}${fmt(abs,1)}% vs prev period</div>`;
+}
+function renderSummary(rows){
+  const cur = summarise(rows), comp = getComp();
+  $('summary-grid').innerHTML = cols().map(c =>
+    `<div class="s-card"><div class="s-label">${esc(c.l)}</div><div class="s-value">${c.f(cur[c.k])}</div>${comp ? changeTag(cur[c.k], comp[c.k], c.dir) : ''}</div>`
+  ).join('');
+}
+const TAB_CFG = {
+  day:        { fn: r => r.date,                  lbl: 'Date',               sort: (a,b) => b.key < a.key ? -1 : 1 },
+  week:       { fn: r => weekStart(r.date),       lbl: 'Week starting (Sun)',sort: (a,b) => a.key < b.key ? -1 : 1 },
+  campaign:   { fn: r => r.campaign,              lbl: 'Campaign',           sort: (a,b) => b.spend - a.spend },
+  creative:   { fn: r => r.creative || '(none)',  lbl: 'Creative name',      sort: (a,b) => b.spend - a.spend, adId: true },
+  copy:       { fn: r => r.copy || '(none)',      lbl: 'Copy name',          sort: (a,b) => b.spend - a.spend },
+  lp:         { fn: r => r.lp || '(none)',        lbl: 'Landing page',       sort: (a,b) => b.spend - a.spend },
+  product:    { fn: r => r.product || '(none)',   lbl: 'Product',            sort: (a,b) => b.spend - a.spend },
+  batch:      { fn: r => r.batch || '(none)',     lbl: 'Creative batch',     sort: (a,b) => b.spend - a.spend },
+  creatorType:{ fn: r => r.creatorType || 'BAU',  lbl: 'Creative type',      sort: (a,b) => b.spend - a.spend },
+};
+function renderTable(rows, tab){
+  const s = getState(), cfg = TAB_CFG[tab], C = cols();
+  const grouped = aggregate(rows, cfg.fn, cfg.adId).sort(cfg.sort);
+  if (!grouped.length) { $('table-area').innerHTML = '<div class="status">No data for this view.</div>'; return; }
+  const tot = summarise(rows);
+  const isC = tab === 'creative', thumbs = [];
+  const purchVals = grouped.map(r => r.purchases), ccVals = grouped.map(r => r.cc);
+  let h = '<div class="table-wrap"><table><thead><tr>' + (isC ? '<th class="preview-col">Preview</th>' : '') +
+    `<th>${cfg.lbl}</th>${C.map(c => `<th data-r>${esc(c.l)}</th>`).join('')}</tr></thead><tbody>`;
+  grouped.forEach((r, i) => {
+    h += '<tr>';
+    if (isC) {
+      const aid = s.adIdsByCreative[r.key] || r.adId || '';
+      h += `<td class="preview-col" id="th-${i}">${thumbHTML(s.creativeCache[r.key], r.key)}</td>`;
+      if (s.creativeCache[r.key] === undefined && aid) thumbs.push({ idx: i, name: r.key, adId: aid });
+    }
+    h += `<td title="${esc(r.key)}">${esc(r.key)}</td>`;
+    C.forEach(c => {
+      let cls = '';
+      if (c.k === 'purchases') cls = rankColor(r.purchases, purchVals);
+      if (c.k === 'cc') cls = rankColor(r.cc, ccVals);
+      if (c.k === 'cpcc' && r.cc > 0) cls = ccColor(toGBP(r.cpcc));
+      h += `<td data-r class="${cls}">${c.f(r[c.k])}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody><tfoot><tr>' + (isC ? '<td></td>' : '') + `<td>Total</td>${C.map(c => `<td data-r>${c.f(tot[c.k])}</td>`).join('')}</tr></tfoot></table></div>`;
+  $('table-area').innerHTML = h;
+  $('table-area').querySelectorAll('[data-modal]').forEach(el => el.addEventListener('click', () => openModalFor(el.dataset.modal)));
+  if (thumbs.length) loadAllThumbs(thumbs);
+}
+function syncTabButtons(){ const t = getState().currentTab; document.querySelectorAll('#report-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t)); }
+document.querySelectorAll('#report-tabs .tab-btn').forEach(b => b.addEventListener('click', () => {
+  getState().currentTab = b.dataset.tab; syncTabButtons();
+  if (getState().rawData.length) renderTable(getFiltered(), b.dataset.tab);
+}));
+
+// ── Creative thumbnails
+function thumbHTML(asset, name){
+  if (!asset) return '<div class="thumb-ph">&#9633;</div>';
+  const k = esc(name);
+  if (asset.type === 'video' || asset.type === 'video-link')
+    return `<div class="thumb-wrap"><img class="thumb" src="${esc(asset.thumbUrl || '')}" alt="" data-modal="${k}"/><div class="play-badge"><svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="11" fill="rgba(0,0,0,0.45)"/><polygon points="8.5,7 16,11 8.5,15" fill="white"/></svg></div></div>`;
+  return `<img class="thumb" src="${esc(asset.url)}" alt="" data-modal="${k}"/>`;
+}
+async function getCreativeAsset(name, adId){
+  const cache = getState().creativeCache;
+  if (cache[name] !== undefined) return cache[name];
+  try {
+    const adData = await graphGet(adId, { fields: 'creative{id,image_hash,image_url,thumbnail_url,object_story_spec,asset_feed_spec,video_id}' });
+    const cr = adData?.creative; if (!cr) return cache[name] = null;
+    const oss = cr.object_story_spec;
+    const videoId = cr.video_id || oss?.video_data?.video_id || oss?.link_data?.child_attachments?.[0]?.video_id || cr.asset_feed_spec?.videos?.[0]?.video_id || null;
+    if (videoId) {
+      try {
+        const vid = await graphGet(videoId, { fields: 'source,format{picture,video_url,width},thumbnails{uri,width,height},permalink_url' });
+        const th = (vid.thumbnails?.data || []).slice().sort((a,b) => (b.width||0) - (a.width||0));
+        const thumbUrl = th[0]?.uri || cr.thumbnail_url || null;
+        let url = vid.format?.length ? vid.format.slice().sort((a,b) => (b.width||0) - (a.width||0))[0]?.video_url : null;
+        if (!url && vid.source) url = vid.source;
+        if (url) return cache[name] = { type: 'video', url, thumbUrl };
+        if (vid.permalink_url) return cache[name] = { type: 'video-link', url: vid.permalink_url, thumbUrl };
+      } catch(e) { console.warn('Video fetch failed', videoId, e); }
+    }
+    const tryHash = async h => { if (!h) return null; try { const d = await graphGet(`act_${AD_ACCOUNT_ID()}/adimages`, { hashes: JSON.stringify([h]), fields: 'url' }); return d?.data?.[0]?.url || null; } catch { return null; } };
+    let img = await tryHash(cr.image_hash);
+    if (!img) img = cr.image_url || oss?.link_data?.image_url || oss?.photo_data?.url || null;
+    if (!img) img = await tryHash(cr.asset_feed_spec?.images?.[0]?.hash);
+    if (!img) img = cr.thumbnail_url || null;
+    return cache[name] = img ? { type: 'image', url: img, thumbUrl: img } : null;
+  } catch(e) { console.warn('getCreativeAsset', e); return cache[name] = null; }
+}
+async function loadAllThumbs(entries){
+  await pool(entries, 6, async ({ idx, name, adId }) => {
+    const asset = await getCreativeAsset(name, adId);
+    const cell = $('th-' + idx); if (!cell) return;
+    cell.innerHTML = thumbHTML(asset, name);
+    cell.querySelectorAll('[data-modal]').forEach(el => el.addEventListener('click', () => openModalFor(name)));
+  });
+}
+function openModalFor(name){
+  const asset = getState().creativeCache[name]; if (!asset) return;
+  const media = $('modal-media');
+  if (asset.type === 'video') {
+    media.innerHTML = '';
+    const v = document.createElement('video'); v.className = 'modal-video'; v.controls = true; v.autoplay = true; v.playsInline = true; v.src = asset.url;
+    v.onerror = () => { media.innerHTML = `<div class="status">Video playback blocked by the browser.<br><a href="${esc(asset.url)}" target="_blank" rel="noopener">Open video in a new tab ↗</a></div>`; };
+    media.appendChild(v);
+  } else if (asset.type === 'video-link') {
+    media.innerHTML = `<a href="${esc(asset.url)}" target="_blank" rel="noopener">${asset.thumbUrl ? `<img class="modal-img" src="${esc(asset.thumbUrl)}" alt=""/>` : ''}<div class="status">Open video on Facebook ↗</div></a>`;
+  } else media.innerHTML = `<img class="modal-img" src="${esc(asset.url)}" alt=""/>`;
+  $('modal-name').textContent = name;
+  $('modal').classList.add('open');
+}
+function closeModal(){ const v = $('modal-media').querySelector('video'); if (v) v.pause(); $('modal-media').innerHTML = ''; $('modal').classList.remove('open'); }
+$('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+$('modal-close').addEventListener('click', closeModal);
+
+function setStatus(html, isErr){ const el = $('status-msg'); el.style.display = 'block'; el.className = 'status' + (isErr ? ' err' : ''); el.innerHTML = html; }
+
+// ═══════════════════════════════════════════════════════════════════
+//  BENCHMARKS
+// ═══════════════════════════════════════════════════════════════════
+const B = { key: null, since: null, until: null, data: {}, errors: {}, loadedAt: null, months: [] };
+const BMETRICS = [
+  { k:'cpm',     l:'CPM',              f:fmtGBP, lower:true,  need:'imp' },
+  { k:'ctr',     l:'CTR (link)',       f:fmtP,   lower:false, need:'imp' },
+  { k:'cpc',     l:'Cost / link click',f:fmtGBP, lower:true,  need:'clk' },
+  { k:'pCvr',    l:'Purchase CVR',     f:fmtP,   lower:false, need:'pur' },
+  { k:'cpPurch', l:'Cost / purchase',  f:fmtGBP, lower:true,  need:'pur' },
+  { k:'roas',    l:'ROAS',             f:fmtX,   lower:false, need:'pur' },
+  { k:'aov',     l:'AOV',              f:fmtGBP, lower:false, need:'pur' },
+];
+// Which platform the Benchmarks tab is showing. Meta data is fetched live; Google comes from the uploaded export.
+let PLAT = 'meta';
+function srcData(){ return PLAT === 'google' ? GD.data || {} : B.data; }
+function benchReady(){ return PLAT === 'google' ? !!GD.loadedAt : !!B.loadedAt; }
+function curMonths(){ const p = benchPeriod(Number($('bf-period').value)); return monthsBetween(p.since, p.until); }
+const GOOGLE_LABELS = { ctr: 'CTR', cpc: 'CPC' };
+function mLabel(m){ return (PLAT === 'google' && GOOGLE_LABELS[m.k]) || m.l; }
+
+function benchPeriod(n){
+  const t = new Date();
+  return { since: isoDate(new Date(t.getFullYear(), t.getMonth() - n, 1)), until: isoDate(new Date(t.getFullYear(), t.getMonth(), 0)) };
+}
+function monthsBetween(since, until){
+  const out = [], d = parseISO(since), end = parseISO(until);
+  d.setDate(1);
+  while (d <= end) { out.push(isoDate(d).slice(0,7)); d.setMonth(d.getMonth() + 1); }
+  return out;
+}
+
+// Accounts to fetch: every benchmark-eligible account + the selected client's readable accounts
+function benchFetchList(){
+  const ids = new Set(S.accounts.filter(a => a.platform === 'meta' && benchEligible(a)).map(a => a.id));
+  if (currentClient) clientAccounts(currentClient, 'meta').forEach(a => { if (accessible(a.id) && rateFor(a.id) != null) ids.add(a.id); });
+  return [...ids];
+}
+
+// Meta monthly insights per account, split by objective and delivery country (local currency).
+// Shared by Benchmarks and Overview; cached in memory and (when it fits) in the browser.
+const META_MEMO = {};
+async function fetchMetaInsights(ids, since, until, force, onProg){
+  const key = `mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`;
+  let entry = !force && META_MEMO[key];
+  if (!entry) {
+    const cached = !force && store.get(key);
+    const fresh = cached && Date.now() - cached.savedAt < CONFIG.CACHE_HOURS * 3600e3 ? cached : null;
+    entry = { data: fresh ? fresh.data : {}, errors: fresh ? (fresh.errors || {}) : {}, savedAt: fresh ? fresh.savedAt : Date.now() };
+  }
+  const { data, errors } = entry;
+  const todo = ids.filter(id => !data[id]);
+  let done = 0;
+  if (todo.length && onProg) onProg(0, todo.length);
+  await pool(todo, CONFIG.CONCURRENCY, async id => {
+    try {
+      const rows = await fetchAllPages(`act_${id}/insights`, {
+        level: 'campaign', time_increment: 'monthly',
+        time_range: JSON.stringify({ since, until }),
+        breakdowns: 'country',
+        fields: 'campaign_id,objective,date_start,spend,impressions,inline_link_clicks,actions,action_values',
+        ...ATTR_PARAMS, limit: 500,
+      });
+      const agg = {};
+      rows.forEach(r => {
+        const country = countryToMarket(r.country);
+        const k = r.date_start.slice(0,7) + '|' + (r.objective || 'UNKNOWN') + '|' + country;
+        if (!agg[k]) agg[k] = { month: r.date_start.slice(0,7), objective: r.objective || 'UNKNOWN', country, ...zero() };
+        addTo(agg[k], { spend: parseFloat(r.spend) || 0, impressions: parseInt(r.impressions) || 0, clicks: parseInt(r.inline_link_clicks) || 0,
+          purchases: actionVal(r.actions, PURCHASE_TYPES), revenue: actionVal(r.action_values, PURCHASE_TYPES) });
+      });
+      data[id] = Object.values(agg); delete errors[id];
+    } catch(e) { errors[id] = e.message; }
+    done++; if (onProg) onProg(done, todo.length);
+  });
+  META_MEMO[key] = entry;
+  if (todo.length) store.set(key, { data, errors, savedAt: entry.savedAt });
+  return { key, data, errors };
+}
+
+async function loadBench(force = false){
+  if (PLAT === 'google') {
+    if (!GD.loadedAt) { benchStatus('No Google data loaded. On the Setup tab, choose the CSV exported from the "Google data" tab.', true); return; }
+    buildMarketMulti(dataCountries()); buildObjectiveOptions(); renderBench(); return;
+  }
+  if (!TOKEN) { benchStatus('No access token. Add one on the Setup tab.', true); return; }
+  const n = Number($('bf-period').value), { since, until } = benchPeriod(n);
+  const ids = benchFetchList();
+  if (!ids.length) { benchStatus('No accounts are ready for benchmarking yet. Check the Setup tab.', true); return; }
+
+  const btn = $('bench-load'); btn.disabled = true;
+  const { key, data, errors } = await fetchMetaInsights(ids, since, until, force,
+    (done, total) => benchStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching ${done} of ${total} accounts…`));
+  btn.disabled = false; btn.textContent = 'Refresh benchmarks';
+  Object.assign(B, { key, since, until, data, errors, loadedAt: new Date(), months: monthsBetween(since, until) });
+  buildMarketMulti(dataCountries());
+  buildObjectiveOptions();
+  renderBench();
+}
+$('bench-load').addEventListener('click', () => loadBench(PLAT === 'meta' && benchReady() && B.key && $('bench-load').textContent.startsWith('Refresh')));
+$('bf-period').addEventListener('change', () => { if (PLAT === 'meta') $('bench-load').textContent = 'Load benchmarks'; loadBench(false); });
+$('bf-platform').addEventListener('change', e => {
+  PLAT = e.target.value;
+  $('bf-objective-label').textContent = PLAT === 'google' ? 'Campaign type' : 'Campaign objective';
+  $('bench-load').textContent = PLAT === 'google' ? 'Show benchmarks' : (B.loadedAt ? 'Refresh benchmarks' : 'Load benchmarks');
+  benchMarkets.clear(); buildMarketMulti(marketOptions()); buildObjectiveOptions(true);
+  if (benchReady()) renderBench();
+  else benchStatus(PLAT === 'google' ? (GD.loadedAt ? 'Click Show benchmarks.' : 'No Google data loaded yet. Choose the Google data CSV on the Setup tab.') : 'Choose filters and click Load benchmarks.', !GD.loadedAt && PLAT === 'google');
+});
+function benchStatus(html, err){ const el = $('bench-status'); el.style.display = 'block'; el.className = 'status' + (err ? ' err' : ''); el.innerHTML = html; $('bench-body').style.display = 'none'; }
+
+// ── Filters
+function fillSelect(id, values, allLabel, keep){
+  const el = $(id), prev = keep ? el.value : null;
+  el.innerHTML = `<option value="">${allLabel}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (prev != null && values.includes(prev)) el.value = prev;
+}
+function uniq(key, rows = S.accounts){ return [...new Set(rows.map(a => a[key]).filter(Boolean))].sort((a,b) => a.localeCompare(b)); }
+// Markets to offer: countries found in the loaded data, ordered by total spend
+function dataCountries(){
+  const sp = {};
+  Object.entries(srcData()).forEach(([id, rows]) => { if (S.byId[id]?.platform !== PLAT) return; const r8 = rateFor(id) || 0; rows.forEach(r => sp[r.country] = (sp[r.country] || 0) + r.spend * r8); });
+  return Object.keys(sp).filter(c => sp[c] > 0).sort((a,b) => sp[b] - sp[a]);
+}
+function marketOptions(){ return benchReady() ? dataCountries() : []; }
+function buildBenchFilterOptions(){
+  fillSelect('bf-industry', uniq('industry'), 'All industries', true);
+  buildMarketMulti(marketOptions());
+  fillSelect('bf-model', uniq('model'), 'All models', true);
+  fillSelect('bf-aov', uniq('aov'), 'All AOV bands', true);
+  buildSubOptions(true);
+  if (!$('bf-objective').options.length) fillSelect('bf-objective', [], 'All objectives');
+}
+function buildSubOptions(keep){
+  const ind = $('bf-industry').value;
+  fillSelect('bf-sub', uniq('sub', S.accounts.filter(a => !ind || a.industry === ind)), 'All sub-verticals', keep);
+}
+const OBJ_LABEL = { SEARCH:'Search', PERFORMANCE_MAX:'Performance Max', SHOPPING:'Shopping', DISPLAY:'Display', VIDEO:'YouTube / Video', DEMAND_GEN:'Demand Gen', DISCOVERY:'Discovery (now Demand Gen)', MULTI_CHANNEL:'App (multi-channel)', LOCAL:'Local', SMART:'Smart', HOTEL:'Hotel', LOCAL_SERVICES:'Local Services', TRAVEL:'Travel',
+  OUTCOME_SALES:'Sales', OUTCOME_LEADS:'Leads', OUTCOME_TRAFFIC:'Traffic', OUTCOME_AWARENESS:'Awareness', OUTCOME_ENGAGEMENT:'Engagement', OUTCOME_APP_PROMOTION:'App promotion', CONVERSIONS:'Conversions (legacy)', LINK_CLICKS:'Link clicks (legacy)', PRODUCT_CATALOG_SALES:'Catalogue sales (legacy)' };
+function buildObjectiveOptions(reset){
+  const objs = new Set(); Object.entries(srcData()).forEach(([id, rows]) => { if (S.byId[id]?.platform === PLAT) rows.forEach(r => objs.add(r.objective)); });
+  const el = $('bf-objective'), prev = reset ? '' : el.value;
+  const list = [...objs].sort();
+  el.innerHTML = `<option value="">${PLAT === 'google' ? 'All campaign types' : 'All objectives'}</option>` + list.map(o => `<option value="${esc(o)}">${esc(OBJ_LABEL[o] || o)}</option>`).join('');
+  const dflt = PLAT === 'google' ? 'SEARCH' : 'OUTCOME_SALES';
+  if (prev && list.includes(prev)) el.value = prev;
+  else if (list.includes(dflt)) el.value = dflt;
+}
+function resetBenchFiltersForClient(){
+  buildBenchFilterOptions();
+  const accts = currentClient ? clientAccounts(currentClient) : [];
+  const first = accts[0];
+  const pick = (id, v) => { const el = $(id); el.value = [...el.options].some(o => o.value === v) ? v : ''; };
+  const one = k => { const vs = uniq(k, accts); return vs.length === 1 ? vs[0] : ''; };
+  pick('bf-industry', first ? one('industry') : '');
+  buildSubOptions(false);
+  pick('bf-sub', '');
+  benchMarkets.clear(); buildMarketMulti(marketOptions());
+  pick('bf-model', first ? one('model') : '');
+  pick('bf-aov', '');
+}
+['bf-industry','bf-sub','bf-model','bf-aov','bf-objective'].forEach(id => $(id).addEventListener('change', () => {
+  if (id === 'bf-industry') buildSubOptions(false);
+  if (benchReady()) renderBench();
+}));
+function benchFilters(){
+  return { months: curMonths(), industry: $('bf-industry').value, sub: $('bf-sub').value, markets: [...benchMarkets], model: $('bf-model').value, aov: $('bf-aov').value, objective: $('bf-objective').value };
+}
+// Market is not an account attribute here: each account's data is split by delivery country,
+// so the market filter is applied to the rows (see acctTotals), not to whole accounts.
+function matchAttrs(a, f, ignore = []){
+  return ['industry','sub','model','aov'].every(k => ignore.includes(k) || !f[k] || a[k] === f[k]);
+}
+
+// ── Market multi-select (empty = all markets)
+const benchMarkets = new Set();
+function marketLabel(opts){
+  if (!benchMarkets.size) return 'All markets';
+  const sel = opts.filter(o => benchMarkets.has(o));
+  return sel.length <= 3 ? sel.join(' + ') : `${sel.length} markets`;
+}
+function buildMarketMulti(opts){
+  [...benchMarkets].forEach(m => { if (!opts.includes(m)) benchMarkets.delete(m); });
+  const wrap = $('bf-market'); wrap.innerHTML = '';
+  const tr = document.createElement('button'); tr.type = 'button'; tr.className = 'ms-trigger'; tr.id = 'mst-bfm';
+  tr.textContent = marketLabel(opts);
+  const dd = document.createElement('div'); dd.className = 'ms-dropdown'; dd.id = 'msd-bfm'; dd.onclick = e => e.stopPropagation();
+  tr.onclick = e => {
+    e.stopPropagation(); const open = dd.classList.contains('open'); closeAllDD();
+    if (!open) { dd.classList.add('open'); const r = tr.getBoundingClientRect(); dd.style.top = (r.bottom + 4) + 'px'; dd.style.left = r.left + 'px'; dd.style.width = Math.max(r.width, 200) + 'px'; }
+  };
+  const all = document.createElement('label'); all.className = 'ms-option all-opt';
+  all.innerHTML = `<input type="checkbox" ${benchMarkets.size ? '' : 'checked'}/><span>All markets</span>`;
+  all.querySelector('input').onchange = () => { benchMarkets.clear(); refresh(); };
+  dd.appendChild(all);
+  if (!opts.length) { const n = document.createElement('div'); n.className = 'ms-option'; n.style.color = 'var(--muted)'; n.textContent = 'Load benchmarks to pick markets'; dd.appendChild(n); }
+  opts.forEach(o => {
+    const d = document.createElement('label'); d.className = 'ms-option';
+    d.innerHTML = `<input type="checkbox" ${benchMarkets.has(o) ? 'checked' : ''}/><span>${flagFor(o)} ${esc(o)}</span>`;
+    d.querySelector('input').onchange = e => { e.target.checked ? benchMarkets.add(o) : benchMarkets.delete(o); refresh(); };
+    dd.appendChild(d);
+  });
+  wrap.appendChild(tr); wrap.appendChild(dd);
+  function refresh(){
+    tr.textContent = marketLabel(opts);
+    all.querySelector('input').checked = !benchMarkets.size;
+    dd.querySelectorAll('.ms-option:not(.all-opt) input').forEach((cb, i) => cb.checked = benchMarkets.has(opts[i]));
+    if (benchReady()) renderBench();
+  }
+}
+
+// ── Units: one pooled value per client (so a client with 8 market accounts counts once)
+function acctTotals(id, f, month){
+  const rate = rateFor(id); const t = zero(); if (rate == null) return t;
+  (srcData()[id] || []).forEach(r => {
+    if ((!f.objective || r.objective === f.objective) && (month ? r.month === month : f.months.includes(r.month)) && (!f.markets.length || f.markets.includes(r.country))) addTo(t, r, rate);
+  });
+  return t;
+}
+function peerUnits(f, month, { includeCurrent = false, ignore = [] } = {}){
+  const byClient = {};
+  S.accounts.forEach(a => {
+    if (S.byId[a.id] !== a || a.platform !== PLAT || !benchEligible(a) || !srcData()[a.id]) return;
+    if (!includeCurrent && a.client === currentClient) return;
+    if (!matchAttrs(a, f, ignore)) return;
+    addTo(byClient[a.client] || (byClient[a.client] = zero()), acctTotals(a.id, f, month));
+  });
+  return Object.entries(byClient).filter(([, t]) => t.spend > 0).map(([client, t]) => ({ client, ...derive(t) }));
+}
+function clientUnit(f, month){
+  if (!currentClient) return null;
+  const accts = clientAccounts(currentClient, PLAT).filter(a => srcData()[a.id]);
+  if (!accts.length) return null;
+  const t = zero(); accts.forEach(a => addTo(t, acctTotals(a.id, f, month)));
+  return t.spend > 0 ? derive(t) : null;
+}
+function qualifies(u, m, monthly){
+  const minS = monthly ? CONFIG.MIN_SPEND_GBP_MONTH : CONFIG.MIN_SPEND_GBP;
+  const minP = monthly ? CONFIG.MIN_PURCHASES_MONTH : CONFIG.MIN_PURCHASES;
+  if (!u || u.spend < minS || u[m.k] == null) return false;
+  if (m.need === 'imp') return u.impressions > 0;
+  if (m.need === 'clk') return u.clicks > 0;
+  return u.purchases >= minP;
+}
+// Every figure shown blends several clients, so no single client's result is ever displayed:
+//   avg  = simple average of peer clients (each client counts once)
+//   lo/hi = average of the lower half / upper half of peers (middle peer left out when the count is odd);
+//           only shown when each half holds at least CONFIG.MIN_PER_HALF clients
+const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+function stats(units, m, monthly){
+  const vals = units.filter(u => qualifies(u, m, monthly)).map(u => u[m.k]).sort((a,b) => a-b);
+  const half = Math.floor(vals.length / 2), hasRange = half >= CONFIG.MIN_PER_HALF;
+  return { n: vals.length, vals, avg: mean(vals),
+    lo: hasRange ? mean(vals.slice(0, half)) : null,
+    hi: hasRange ? mean(vals.slice(vals.length - half)) : null };
+}
+function rangeText(st, m){ return st.lo == null ? '<span class="hint">needs ' + (CONFIG.MIN_PER_HALF * 2) + '+ peers</span>' : m.f(st.lo) + ' – ' + m.f(st.hi); }
+// share of peers the client beats (direction-aware), ties count half
+function beatShare(v, vals, lower){
+  if (v == null || !vals.length) return null;
+  let s = 0; vals.forEach(x => { if (x === v) s += .5; else if (lower ? v < x : v > x) s += 1; });
+  return s / vals.length;
+}
+
+function renderBench(){
+  if (!benchReady()) return;
+  const f = benchFilters();
+  const peers = peerUnits(f), me = clientUnit(f);
+  $('bench-status').style.display = 'none'; $('bench-body').style.display = 'block';
+  setText('lg-client', currentClient || 'Client');
+
+  const nErr = PLAT === 'meta' ? Object.keys(B.errors).length : 0;
+  const ms = curMonths(), gLast = GD.months[GD.months.length - 1];
+  const gGap = PLAT === 'google' && gLast && gLast < ms[ms.length - 1];
+  $('bench-meta').innerHTML = [
+    `<span class="pill">${PLAT === 'google' ? 'Google Ads' : 'Meta'} · ${ms[0]} → ${ms[ms.length - 1]}</span>`,
+    `<span class="pill">${peers.length} peer client${peers.length === 1 ? '' : 's'} with spend in these filters</span>`,
+    `<span class="pill">${PLAT === 'google' ? 'Purchase conversions as reported by each account' : '7-day click + 1-day view'} · GBP</span>`,
+    gGap ? `<span class="pill warn">Google data only runs to ${gLast}: export it again</span>` : '',
+    nErr ? `<span class="pill bad">${nErr} account${nErr === 1 ? '' : 's'} failed to load: see Setup</span>` : '',
+    `<span class="pill">Loaded ${(PLAT === 'google' ? GD.loadedAt : B.loadedAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})}</span>`,
+  ].join('');
+
+  let h = `<thead><tr><th>Metric</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Typical range</th><th>Position <span class="hint" style="text-transform:none;letter-spacing:0">(right = better)</span></th><th>Verdict</th><th data-r>Peers</th></tr></thead><tbody>`;
+  BMETRICS.forEach(m => {
+    const st = stats(peers, m, false);
+    const cv = me && qualifies(me, m, false) ? me[m.k] : (me ? me[m.k] : null);
+    const enough = st.n >= CONFIG.MIN_CLIENTS;
+    const share = enough ? beatShare(cv, st.vals, m.lower) : null;
+    let verdict = '', vcls = 'mid';
+    if (!enough) {
+      const lowSpend = peers.filter(u => u.spend < CONFIG.MIN_SPEND_GBP).length;
+      const lowPur = m.need === 'pur' ? peers.filter(u => u.spend >= CONFIG.MIN_SPEND_GBP && u.purchases < CONFIG.MIN_PURCHASES).length : 0;
+      const why = [lowSpend ? `${lowSpend} under £${fmt(CONFIG.MIN_SPEND_GBP)} spend` : '', lowPur ? `${lowPur} under ${CONFIG.MIN_PURCHASES} purchases` : ''].filter(Boolean).join(', ');
+      verdict = `Not enough peers (${st.n} of ${CONFIG.MIN_CLIENTS} needed)${why ? `<div class="hint">${why}</div>` : ''}`;
+    }
+    else if (cv == null) verdict = 'No client data';
+    else {
+      // Headline: client vs peer average, direction-aware (lower is better for costs)
+      const diff = st.avg ? (cv - st.avg) / st.avg : 0;
+      const better = m.lower ? diff < 0 : diff > 0;
+      const pctTxt = Math.round(Math.abs(diff) * 100);
+      if (Math.abs(diff) < CONFIG.IN_LINE_BAND) { verdict = 'In line with peer average'; vcls = 'mid'; }
+      else { verdict = `${pctTxt}% ${better ? 'better' : 'worse'} than peer average`; vcls = better ? 'good' : 'bad'; }
+      // Supporting detail: how many peers the client beats
+      const beats = Math.round(share * st.n);
+      verdict += `<div class="hint">Beats ${beats} of ${st.n} peers</div>`;
+    }
+    h += `<tr><td><strong>${mLabel(m)}</strong>${m.lower ? ' <span class="hint">lower is better</span>' : ''}</td>
+      <td data-r><strong>${m.f(cv)}</strong></td>
+      <td data-r>${enough ? m.f(st.avg) : '—'}</td><td data-r>${enough ? rangeText(st, m) : '—'}</td>
+      <td>${enough ? posBar(st, cv, m) : ''}</td>
+      <td class="verdict ${vcls}">${verdict}</td><td data-r>${st.n}</td></tr>`;
+  });
+  $('bench-table').innerHTML = h + '</tbody>';
+  $('bench-rules').textContent = `Each peer is one client, pooled across its accounts that match the filters. ${PLAT === 'google' ? 'Google figures use purchase-category conversions with each account\'s own attribution settings, split by campaign type. ' : ''}Markets use the country each ad was delivered in, so a multi-country account only counts its spend and results in the markets selected. A peer counts if it spent at least £${fmt(CONFIG.MIN_SPEND_GBP)} in the period, plus at least ${CONFIG.MIN_PURCHASES} purchases for purchase metrics. A benchmark only shows when ${CONFIG.MIN_CLIENTS}+ peers qualify. Peer average is the simple average of peer clients (each client counts once). Typical range runs from the average of the lower half of peers to the average of the upper half, shown once there are ${CONFIG.MIN_PER_HALF * 2}+ peers. No figure is a single client's result, and peer names are never shown.`;
+
+  buildTrendMetricOptions();
+  renderTrend();
+  renderIndustryTable(f);
+}
+
+function posBar(st, v, m){
+  const W = 180, H = 22, pad = 6;
+  const pts = [st.avg, st.lo, st.hi, v].filter(x => x != null);
+  let lo = Math.min(...pts), hi = Math.max(...pts);
+  if (hi === lo) { hi = lo + 1; }
+  const span = hi - lo; lo -= span * 0.05; hi += span * 0.05;
+  const x = val => pad + (W - pad*2) * (m.lower ? (hi - val) / (hi - lo) : (val - lo) / (hi - lo)); // right = better
+  const hasR = st.lo != null, xa = hasR ? x(st.lo) : 0, xb = hasR ? x(st.hi) : 0;
+  const bx = Math.min(xa, xb), bw = Math.max(2, Math.abs(xb - xa));
+  const tip = `Peer average ${m.f(st.avg)}${hasR ? ' · typical range ' + m.f(st.lo) + ' – ' + m.f(st.hi) : ''}${v != null ? ' · client ' + m.f(v) : ''} (right = better)`;
+  return `<svg class="pos-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tip)}"><title>${esc(tip)}</title>
+    <line x1="${pad}" x2="${W-pad}" y1="${H/2}" y2="${H/2}" stroke="var(--border2)" stroke-width="2" stroke-linecap="round"/>
+    ${hasR ? `<rect x="${bx}" y="${H/2-5}" width="${bw}" height="10" rx="4" fill="var(--band)"/>` : ''}
+    <line x1="${x(st.avg)}" x2="${x(st.avg)}" y1="${H/2-7}" y2="${H/2+7}" stroke="var(--series-peer)" stroke-width="2"/>
+    ${v != null ? `<circle cx="${x(v)}" cy="${H/2}" r="5" fill="var(--series-client)" stroke="var(--bg)" stroke-width="2"/>` : ''}
+  </svg>`;
+}
+
+// ── Trend chart
+function buildTrendMetricOptions(){
+  const el = $('trend-metric'), prev = el.value || 'cpPurch';
+  el.innerHTML = BMETRICS.map(m => `<option value="${m.k}">${mLabel(m)}</option>`).join('');
+  el.value = prev;
+}
+$('trend-metric').addEventListener('change', () => renderTrend());
+$('trend-table-btn').addEventListener('click', () => {
+  const t = $('trend-table'), show = t.style.display === 'none';
+  t.style.display = show ? 'block' : 'none'; $('trend-table-btn').textContent = show ? 'Hide table' : 'Show table';
+});
+function trendSeries(){
+  const f = benchFilters(), m = BMETRICS.find(x => x.k === $('trend-metric').value) || BMETRICS[4];
+  const pts = curMonths().map(mo => {
+    const st = stats(peerUnits(f, mo), m, true), me = clientUnit(f, mo);
+    const ok = st.n >= CONFIG.MIN_CLIENTS;
+    return { month: mo, n: st.n, p25: ok ? st.lo : null, p50: ok ? st.avg : null, p75: ok ? st.hi : null, client: me && me.spend > 0 ? me[m.k] : null };
+  });
+  return { m, pts };
+}
+function monthLabel(mo){ const [y, m] = mo.split('-').map(Number); return new Date(y, m-1, 1).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }); }
+function renderTrend(){
+  if (!benchReady()) return;
+  const { m, pts } = trendSeries();
+  const box = $('trend-chart');
+  const W = Math.max(320, box.clientWidth || 720), H = 260, L = 64, R = 96, T = 14, Bm = 30;
+  const vals = pts.flatMap(p => [p.p25, p.p75, p.p50, p.client]).filter(v => v != null);
+  if (!vals.length) { box.innerHTML = `<div class="status">Not enough data for a ${esc(mLabel(m))} trend with these filters.</div>`; $('trend-table').innerHTML = ''; return; }
+  let lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) hi = lo + 1;
+  lo = Math.max(0, lo - (hi - lo) * 0.15); hi = hi + (hi - lo) * 0.1;
+  const n = pts.length, step = n > 1 ? (W - L - R) / (n - 1) : 0;
+  const X = i => n > 1 ? L + i * step : (L + (W - R)) / 2;
+  const Y = v => T + (H - T - Bm) * (1 - (v - lo) / (hi - lo));
+  const ticks = [0, 1, 2, 3].map(i => lo + (hi - lo) * i / 3);
+  const seg = (key) => { // split into runs of non-null values
+    const runs = []; let cur = [];
+    pts.forEach((p, i) => { if (p[key] != null) cur.push([X(i), Y(p[key])]); else { if (cur.length) runs.push(cur); cur = []; } });
+    if (cur.length) runs.push(cur); return runs;
+  };
+  const path = run => run.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('');
+  // band runs
+  let band = ''; let run = [];
+  const flush = () => { if (run.length) { const top = run.map(i => [X(i), Y(pts[i].p75)]), bot = run.map(i => [X(i), Y(pts[i].p25)]).reverse();
+      if (run.length === 1) { const x = X(run[0]); band += `<rect x="${x-6}" y="${Y(pts[run[0]].p75)}" width="12" height="${Math.max(2, Y(pts[run[0]].p25) - Y(pts[run[0]].p75))}" rx="4" fill="var(--band)"/>`; }
+      else band += `<path d="${path(top)}L${bot.map(p => p[0].toFixed(1)+','+p[1].toFixed(1)).join('L')}Z" fill="var(--band)"/>`; } run = []; };
+  pts.forEach((p, i) => { if (p.p25 != null) run.push(i); else flush(); }); flush();
+
+  const lastIdx = key => { for (let i = n - 1; i >= 0; i--) if (pts[i][key] != null) return i; return -1; };
+  const lc = lastIdx('client'), lm = lastIdx('p50');
+  let lyC = lc >= 0 ? Y(pts[lc].client) : null, lyM = lm >= 0 ? Y(pts[lm].p50) : null;
+  if (lyC != null && lyM != null && Math.abs(lyC - lyM) < 14) { if (lyC < lyM) { lyC -= 7; lyM += 7; } else { lyC += 7; lyM -= 7; } }
+
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(mLabel(m))} by month: client vs peer average">`;
+  ticks.forEach(t => { svg += `<line x1="${L}" x2="${W-R}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--border)"/><text x="${L-8}" y="${Y(t)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${m.f(t)}</text>`; });
+  pts.forEach((p, i) => { if (n <= 12 || i % 2 === 0) svg += `<text x="${X(i)}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--muted)">${monthLabel(p.month)}</text>`; });
+  svg += band;
+  seg('p50').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-peer)" stroke-width="2" stroke-dasharray="5 4"/>`; r.forEach(p => svg += `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--series-peer)" stroke="var(--surface)" stroke-width="2"/>`); });
+  seg('client').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-client)" stroke-width="2"/>`; r.forEach(p => svg += `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="var(--series-client)" stroke="var(--surface)" stroke-width="2"/>`); });
+  if (lc >= 0) svg += `<text x="${X(lc)+10}" y="${lyC+4}" font-size="11" font-weight="600" fill="var(--ink)">${esc((currentClient || 'Client').slice(0, 14))}</text>`;
+  if (lm >= 0) svg += `<text x="${X(lm)+10}" y="${lyM+4}" font-size="11" fill="var(--muted)">Peer average</text>`;
+  pts.forEach((p, i) => { const w = n > 1 ? step : W - L - R; svg += `<rect class="hit" data-i="${i}" x="${X(i) - w/2}" y="${T}" width="${w}" height="${H-T-Bm}" fill="transparent"/>`; });
+  svg += '</svg>';
+  box.innerHTML = svg;
+
+  const tip = $('trend-tip'), card = $('trend-card');
+  box.querySelectorAll('.hit').forEach(r => {
+    r.addEventListener('mousemove', e => {
+      const p = pts[+r.dataset.i];
+      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(currentClient || 'Client')}</span><span>${m.f(p.client)}</span></div><div class="row"><span>Peer average</span><span>${m.f(p.p50)}</span></div><div class="row"><span>Typical range</span><span>${p.p25 != null ? m.f(p.p25) + ' – ' + m.f(p.p75) : '—'}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>`;
+      const cr = card.getBoundingClientRect();
+      let x = e.clientX - cr.left + 14; if (x > cr.width - 190) x = e.clientX - cr.left - 190;
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+    });
+    r.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+
+  $('trend-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Lower-half avg</th><th data-r>Upper-half avg</th><th data-r>Peers</th></tr></thead><tbody>` +
+    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${m.f(p.client)}</td><td data-r>${m.f(p.p50)}</td><td data-r>${m.f(p.p25)}</td><td data-r>${m.f(p.p75)}</td><td data-r>${p.n}</td></tr>`).join('') + '</tbody></table></div>';
+}
+window.addEventListener('resize', () => { if (benchReady() && currentView === 'bench') renderTrend(); });
+
+// ── Industry overview
+function renderIndustryTable(f){
+  const myInd = currentClient ? uniq('industry', clientAccounts(currentClient)) : [];
+  const inds = uniq('industry');
+  let h = `<thead><tr><th>Industry</th><th data-r>Qualifying clients</th>${BMETRICS.map(m => `<th data-r>${mLabel(m)}</th>`).join('')}</tr></thead><tbody>`;
+  inds.forEach(ind => {
+    const units = peerUnits({ ...f, industry: ind, sub: '' }, null, { includeCurrent: true });
+    const cells = BMETRICS.map(m => { const st = stats(units, m, false); return `<td data-r>${st.n >= CONFIG.MIN_CLIENTS ? m.f(st.avg) : '<span class="hint">—</span>'}</td>`; }).join('');
+    h += `<tr class="click${myInd.includes(ind) ? ' hl' : ''}" data-ind="${esc(ind)}"><td>${esc(ind)}</td><td data-r title="Clients with £${fmt(CONFIG.MIN_SPEND_GBP)}+ spend, out of all clients with any spend">${units.filter(u => u.spend >= CONFIG.MIN_SPEND_GBP).length} <span class="hint">of ${units.length}</span></td>${cells}</tr>`;
+  });
+  $('industry-table').innerHTML = h + '</tbody>';
+  $('industry-table').querySelectorAll('tr[data-ind]').forEach(tr => tr.addEventListener('click', () => {
+    $('bf-industry').value = tr.dataset.ind; buildSubOptions(false); renderBench();
+    $('bench-table').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  OVERVIEW: monthly spend across Meta and Google Ads (GBP)
+// ═══════════════════════════════════════════════════════════════════
+const OV_SERIES = [
+  { k: 'META',            l: 'Meta',              c: 'var(--s1)' },
+  { k: 'SEARCH',          l: 'Google Search',     c: 'var(--s2)' },
+  { k: 'PERFORMANCE_MAX', l: 'Google PMax',       c: 'var(--s3)' },
+  { k: 'SHOPPING',        l: 'Google Shopping',   c: 'var(--s4)' },
+  { k: 'VIDEO',           l: 'Google YouTube',    c: 'var(--s5)' },
+  { k: 'DEMAND_GEN',      l: 'Google Demand Gen', c: 'var(--s6)' },
+  { k: 'G_OTHER',         l: 'Google other',      c: 'var(--s7)' },
+];
+function gSeries(ch){ if (ch === 'DISCOVERY') return 'DEMAND_GEN'; return ['SEARCH','PERFORMANCE_MAX','SHOPPING','VIDEO','DEMAND_GEN'].includes(ch) ? ch : 'G_OTHER'; }
+const OV = { meta: null, metaKey: null, loading: false };
+function ovMonths(){ const p = benchPeriod(Number($('ov-period').value)); return { ...p, months: monthsBetween(p.since, p.until) }; }
+function ovAccounts(){
+  const all = $('ov-scope').value === 'all';
+  return S.accounts.filter(a => S.byId[a.id] === a && a.client && (all || a.client === currentClient));
+}
+function ovMetaIds(){ return ovAccounts().filter(a => a.platform === 'meta' && accessible(a.id) && rateFor(a.id) != null).map(a => a.id); }
+
+async function loadOverviewMeta(force){
+  if (!TOKEN) { ovStatus('No Meta token, so only Google figures are shown. Add a token on the Setup tab.'); renderOverview(); return; }
+  const { since, until } = ovMonths();
+  const ids = ovMetaIds();
+  OV.loading = true; $('ov-load').disabled = true;
+  const res = await fetchMetaInsights(ids, since, until, force,
+    (d, t) => ovStatus(`<div class="dot-loader"><span></span><span></span><span></span></div> Fetching Meta data: ${d} of ${t} accounts…`));
+  OV.meta = res; OV.metaKey = res.key; OV.loading = false;
+  $('ov-load').disabled = false; $('ov-load').textContent = 'Refresh Meta data';
+  $('ov-status').style.display = 'none';
+  renderOverview();
+}
+function ovStatus(html){ const el = $('ov-status'); el.style.display = 'block'; el.className = 'status'; el.innerHTML = html; }
+$('ov-load').addEventListener('click', () => loadOverviewMeta(OV.meta && $('ov-load').textContent.startsWith('Refresh')));
+['ov-scope', 'ov-period'].forEach(id => $(id).addEventListener('change', () => { $('ov-load').textContent = 'Load Meta data'; renderOverview(); }));
+
+function ovCompute(){
+  const { since, until, months } = ovMonths();
+  const key = `mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`;
+  const metaData = (OV.meta && OV.meta.key === key) ? OV.meta.data : (META_MEMO[key]?.data || null);
+  const cells = {}; months.forEach(m => cells[m] = Object.fromEntries(OV_SERIES.map(s => [s.k, 0])));
+  const plat = { meta: zero(), google: zero() };
+  let metaMissing = 0, noRate = 0, gMissing = 0;
+  ovAccounts().forEach(a => {
+    const rate = rateFor(a.id);
+    if (a.platform === 'meta') {
+      if (!metaData || !metaData[a.id]) { if (accessible(a.id)) metaMissing++; return; }
+      if (rate == null) { noRate++; return; }
+      metaData[a.id].forEach(r => { if (cells[r.month]) { cells[r.month].META += r.spend * rate; addTo(plat.meta, r, rate); } });
+    } else {
+      const g = GD.byId[a.id];
+      if (!g) { gMissing++; return; }
+      if (rate == null) { noRate++; return; }
+      g.rows.forEach(r => { if (cells[r.month]) { cells[r.month][gSeries(r.objective)] += r.spend * rate; addTo(plat.google, r, rate); } });
+    }
+  });
+  return { months, cells, plat, metaLoaded: !!metaData, metaMissing, noRate, gMissing };
+}
+
+function renderOverview(){
+  if (currentView !== 'overview') return;
+  const scopeAll = $('ov-scope').value === 'all';
+  if (!scopeAll && !currentClient) { ovStatus('Pick a client at the top right, or switch the scope to All clients.'); $('ov-body').style.display = 'none'; return; }
+  const c = ovCompute();
+  const tot = m => OV_SERIES.reduce((s, x) => s + c.cells[m][x.k], 0);
+  const grand = c.months.reduce((s, m) => s + tot(m), 0);
+  $('ov-body').style.display = 'block';
+  if (!c.metaLoaded && !OV.loading) ovStatus(`Meta figures aren't loaded for this period yet. Click <strong>Load Meta data</strong>${scopeAll ? ' (all clients can take a few minutes)' : ''}. Google figures are shown below.`);
+  else if (!OV.loading) $('ov-status').style.display = 'none';
+
+  const gLast = GD.months[GD.months.length - 1];
+  $('ov-meta').innerHTML = [
+    `<span class="pill">${scopeAll ? 'All clients' : esc(currentClient)} · ${c.months[0]} → ${c.months[c.months.length - 1]}</span>`,
+    `<span class="pill">GBP at FX-tab rates</span>`,
+    !GD.loadedAt ? '<span class="pill warn">No Google data loaded</span>' : (gLast && gLast < c.months[c.months.length - 1] ? `<span class="pill warn">Google data only runs to ${gLast}</span>` : ''),
+  ].join('');
+
+  // KPIs
+  const last = c.months[c.months.length - 1], prev = c.months[c.months.length - 2];
+  const chg = prev && tot(prev) ? (tot(last) - tot(prev)) / tot(prev) * 100 : null;
+  const share = v => grand ? fmt(v / grand * 100, 0) + '%' : '—';
+  const mSpend = c.plat.meta.spend, gSpend = c.plat.google.spend;
+  const blend = zero(); addTo(blend, c.plat.meta); addTo(blend, c.plat.google); const bd = derive(blend);
+  const kpi = (l, v, sub) => `<div class="s-card"><div class="s-label">${l}</div><div class="s-value">${v}</div>${sub ? `<div class="s-change flat">${sub}</div>` : ''}</div>`;
+  $('ov-kpis').innerHTML = [
+    kpi('Total spend', fmtGBP0(grand), `${c.months.length} months`),
+    kpi('Meta spend', fmtGBP0(mSpend), share(mSpend) + ' of total'),
+    kpi('Google spend', fmtGBP0(gSpend), share(gSpend) + ' of total'),
+    kpi(`${monthLabel(last)} spend`, fmtGBP0(tot(last)), chg == null ? '' : `${chg >= 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(chg), 1)}% vs ${monthLabel(prev)}`),
+    kpi('Blended cost / purchase', fmtGBP(bd.cpPurch), 'Meta + Google purchases'),
+    kpi('Blended ROAS', fmtX(bd.roas), 'Meta + Google revenue'),
+  ].join('');
+
+  // Series actually present
+  const present = OV_SERIES.filter(s => c.months.some(m => c.cells[m][s.k] > 0));
+  $('ov-legend').innerHTML = present.map(s => `<span><i class="sw" style="background:${s.c}"></i>${s.l}</span>`).join('');
+  renderOvChart(c, present, tot);
+
+  // Table
+  let h = `<thead><tr><th>Month</th>${present.map(s => `<th data-r>${s.l}</th>`).join('')}<th data-r>Total</th><th data-r>vs prev month</th></tr></thead><tbody>`;
+  c.months.forEach((m, i) => {
+    const t = tot(m), p = i ? tot(c.months[i - 1]) : null, d = p ? (t - p) / p * 100 : null;
+    h += `<tr><td>${monthLabel(m)}</td>${present.map(s => `<td data-r>${fmtGBP0(c.cells[m][s.k])}</td>`).join('')}<td data-r><strong>${fmtGBP0(t)}</strong></td><td data-r>${d == null ? '—' : (d >= 0 ? '+' : '−') + fmt(Math.abs(d), 1) + '%'}</td></tr>`;
+  });
+  h += `</tbody><tfoot><tr><td>Total</td>${present.map(s => `<td data-r>${fmtGBP0(c.months.reduce((x, m) => x + c.cells[m][s.k], 0))}</td>`).join('')}<td data-r>${fmtGBP0(grand)}</td><td></td></tr></tfoot>`;
+  $('ov-table').innerHTML = h;
+
+  const notes = [];
+  if (c.metaMissing) notes.push(`${c.metaMissing} Meta account${c.metaMissing === 1 ? '' : 's'} not loaded yet`);
+  if (c.gMissing) notes.push(`${c.gMissing} Google account${c.gMissing === 1 ? '' : 's'} in the sheet with no rows in the Google data file`);
+  if (c.noRate) notes.push(`${c.noRate} account${c.noRate === 1 ? '' : 's'} left out for lack of an FX rate`);
+  $('ov-notes').textContent = `Spend includes every account in the lookup sheet for ${scopeAll ? 'all clients' : 'this client'}, whatever its include_in_benchmarks setting. Blended cost / purchase and ROAS mix Meta (7-day click + 1-day view) with Google (each account's own attribution), so treat them as a guide.${notes.length ? ' Not included: ' + notes.join('; ') + '.' : ''}`;
+}
+
+function renderOvChart(c, present, tot){
+  const box = $('ov-chart');
+  if (!present.length) { box.innerHTML = '<div class="status">No spend found for this scope and period.</div>'; return; }
+  const W = Math.max(320, box.clientWidth || 720), H = 280, L = 70, R = 12, T = 12, Bm = 30;
+  const n = c.months.length, slot = (W - L - R) / n, bw = Math.min(46, slot * 0.62);
+  const max = Math.max(...c.months.map(tot)) || 1;
+  const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
+  const Y = v => T + (H - T - Bm) * (1 - v / top);
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly spend by channel">`;
+  for (let v = 0; v <= top + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmtShortGBP(v)}</text>`;
+  c.months.forEach((m, i) => {
+    const x = L + slot * i + (slot - bw) / 2;
+    let acc = 0;
+    const segs = present.filter(s => c.cells[m][s.k] > 0);
+    segs.forEach((s, j) => {
+      const v = c.cells[m][s.k], y1 = Y(acc + v), y0 = Y(acc);
+      const h = Math.max(0, y0 - y1 - (j < segs.length - 1 ? 2 : 0));   // 2px surface gap between stacked segments
+      const isTop = j === segs.length - 1;
+      svg += isTop
+        ? `<path d="M${x},${y1 + h} V${y1 + 4} Q${x},${y1} ${x + 4},${y1} H${x + bw - 4} Q${x + bw},${y1} ${x + bw},${y1 + 4} V${y1 + h} Z" fill="${s.c}"/>`
+        : `<rect x="${x}" y="${y1 + 2}" width="${bw}" height="${h}" fill="${s.c}"/>`;
+      acc += v;
+    });
+    if (n <= 12 || i % 2 === 0) svg += `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle" font-size="11" fill="var(--muted)">${monthLabel(m)}</text>`;
+    svg += `<rect class="ovhit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`;
+  });
+  svg += '</svg>';
+  box.innerHTML = svg;
+  const tip = $('ov-tip'), card = $('ov-card');
+  box.querySelectorAll('.ovhit').forEach(r => {
+    r.addEventListener('mousemove', e => {
+      const m = c.months[+r.dataset.i];
+      tip.innerHTML = `<b>${monthLabel(m)}</b>` + present.filter(s => c.cells[m][s.k] > 0).slice().reverse().map(s => `<div class="row"><span><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.c};margin-right:6px"></i>${s.l}</span><span>${fmtGBP0(c.cells[m][s.k])}</span></div>`).join('') + `<div class="row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px"><span>Total</span><span><strong>${fmtGBP0(tot(m))}</strong></span></div>`;
+      const cr = card.getBoundingClientRect();
+      let x = e.clientX - cr.left + 14; if (x > cr.width - 230) x = e.clientX - cr.left - 230;
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+    });
+    r.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+}
+function fmtGBP0(n){ return (n == null || isNaN(n)) ? '—' : '£' + fmt(n, 0); }
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+function fmtShortGBP(v){ return v >= 1e6 ? '£' + fmt(v / 1e6, v % 1e6 ? 1 : 0) + 'm' : v >= 1e3 ? '£' + fmt(v / 1e3, 0) + 'k' : '£' + fmt(v, 0); }
+window.addEventListener('resize', () => { if (currentView === 'overview') renderOverview(); });
+
+// ═══════════════════════════════════════════════════════════════════
+//  SETUP
+// ═══════════════════════════════════════════════════════════════════
+function tbl(head, rows, empty){
+  if (!rows.length) return `<p class="hint">${empty}</p>`;
+  return `<div class="table-wrap"><table><thead><tr>${head.map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+// ── Suggested rows from Meta ──────────────────────────────────────
+const SUG = { rows: null, msg: '' };
+const SHEET_COLS = ['account_id','account_name','client','industry','sub_vertical','business_model','market','aov_band','include_in_benchmarks','custom_conversion_id','custom_conversion_label','custom_conversion_target_gbp','notes'];
+const LEAD_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
+const APP_TYPES = ['mobile_app_install', 'app_install', 'omni_app_install'];
+const COUNTRY_WORDS = ['uk','gb','us','usa','de','fr','ie','nl','au','ca','nz','es','it','se','dk','no','ch','at','be','pl','in','ph','sg','ae','za','jp','eu','emea','apac','row','global','intl','international',
+  'united kingdom','united states','germany','france','ireland','netherlands','australia','canada','spain','italy','sweden','denmark','norway','switzerland','austria','belgium','poland','india','philippines','singapore','japan',
+  'ad account','ads account','account','meta','facebook','fb','ig','instagram','ads','paid social','social','main','new'];
+function guessClient(name, business){
+  if (business && !CONFIG.AGENCY_BUSINESS_NAMES.some(b => b.toLowerCase() === business.toLowerCase())) return business;
+  let n = ' ' + (name || '') + ' ';
+  n = n.replace(/[()\[\]{}]/g, ' ');
+  COUNTRY_WORDS.slice().sort((a,b) => b.length - a.length).forEach(w => { n = n.replace(new RegExp('(^|[\\s|_\\-–—:/.,])' + w.replace(/ /g,'\\s+') + '(?=$|[\\s|_\\-–—:/.,])', 'gi'), ' '); });
+  return n.replace(/[\s|_\-–—:/.,]+/g, ' ').trim();
+}
+function aovBand(gbp){
+  if (gbp == null) return '';
+  if (gbp < 25) return 'Under £25'; if (gbp < 50) return '£25–50'; if (gbp < 100) return '£50–100';
+  if (gbp < 250) return '£100–250'; if (gbp < 500) return '£250–500'; return '£500+';
+}
+async function runSuggest(){
+  if (!TOKEN) { SUG.msg = 'Add a token first.'; renderSetup(); return; }
+  const ids = [...new Set([...META.listed, ...S.accounts.filter(a => a.platform === 'meta').map(a => a.id)])].filter(id => S.byId[id]?.platform !== 'google' && META.byId[id] && !META.byId[id].error);
+  const until = new Date(); until.setDate(until.getDate() - 1);
+  const since = new Date(until); since.setDate(since.getDate() - (CONFIG.SUGGEST_DAYS - 1));
+  const tr = JSON.stringify({ since: isoDate(since), until: isoDate(until) });
+  const btn = $('suggest-run'); if (btn) btn.disabled = true;
+  let done = 0; const rows = [];
+  await pool(ids, CONFIG.CONCURRENCY, async id => {
+    const m = META.byId[id] || {}, sheet = S.byId[id];
+    let byCountry = [], err = '';
+    try {
+      byCountry = await fetchAllPages(`act_${id}/insights`, { level: 'account', breakdowns: 'country', time_range: tr, fields: 'spend,actions,action_values', ...ATTR_PARAMS, limit: 500 });
+    } catch(e) { err = e.message; }
+    let spend = 0, pur = 0, rev = 0, leads = 0, apps = 0; const ctry = {};
+    byCountry.forEach(r => {
+      const s = parseFloat(r.spend) || 0; spend += s;
+      const c = (r.country || '').toUpperCase(); ctry[c] = (ctry[c] || 0) + s;
+      pur += actionVal(r.actions, PURCHASE_TYPES); rev += actionVal(r.action_values, PURCHASE_TYPES);
+      leads += actionVal(r.actions, LEAD_TYPES); apps += actionVal(r.actions, APP_TYPES);
+    });
+    const top = Object.entries(ctry).sort((a,b) => b[1] - a[1])[0];
+    const share = top && spend ? top[1] / spend : 0;
+    const market = !top ? '' : share >= CONFIG.MARKET_SHARE ? (top[0] === 'GB' ? 'UK' : top[0]) : 'Multi-market';
+    const model = pur >= 1 ? 'Ecommerce' : leads >= 1 ? 'Lead gen' : apps >= 1 ? 'App' : '';
+    const rate = m.currency ? S.fx[m.currency.toUpperCase()] : undefined;
+    const aov = pur >= CONFIG.MIN_PURCHASES && rev > 0 && rate != null ? aovBand(rev / pur * rate) : '';
+    const sug = { client: guessClient(m.name, m.business), market, model, aov, include: spend > 0 ? 'Yes' : 'No' };
+    const keep = (k, v) => (sheet && sheet[k]) ? sheet[k] : v;
+    rows.push({
+      id, metaName: m.name || '', share, spendLocal: spend, currency: m.currency || '', err, sug, inSheet: !!sheet,
+      out: {
+        account_id: id, account_name: sheet?.label || '', client: keep('client', sug.client), industry: sheet?.industry || '',
+        sub_vertical: sheet?.sub || '', business_model: keep('model', sug.model), market: keep('market', sug.market),
+        aov_band: keep('aov', sug.aov), include_in_benchmarks: sheet?.includeRaw || sug.include,
+        custom_conversion_id: sheet?.ccId || '', custom_conversion_label: sheet?.ccId ? sheet.ccLabel : '',
+        custom_conversion_target_gbp: sheet?.ccTarget ?? '', notes: sheet?.notes || '',
+      },
+    });
+    done++; setText('suggest-msg', `Checked ${done} of ${ids.length} accounts…`);
+  });
+  rows.sort((a,b) => (a.out.client || 'zzz').localeCompare(b.out.client || 'zzz') || a.out.market.localeCompare(b.out.market));
+  SUG.rows = rows;
+  const nErr = rows.filter(r => r.err).length;
+  SUG.msg = `${rows.length} accounts checked${nErr ? `, ${nErr} failed` : ''}. Check the suggestions, then copy them into the sheet.`;
+  renderSetup();
+}
+function suggestTableHTML(){
+  const cell = (v, fromSheet) => v ? `${esc(v)}${fromSheet ? ' <span class="hint">(sheet)</span>' : ''}` : '<span class="hint">—</span>';
+  return tbl(['Account', 'Client', 'Market', 'Model', 'AOV band', `Spend (${CONFIG.SUGGEST_DAYS}d)`, 'Industry'],
+    SUG.rows.map(r => {
+      const sh = S.byId[r.id] || {};
+      return [
+        `${esc(r.metaName || r.id)}<div class="hint">${esc(r.id)}</div>${r.err ? `<div class="hint cf-red">${esc(r.err)}</div>` : ''}`,
+        cell(r.out.client, !!sh.client),
+        cell(r.out.market, !!sh.market) + (r.share && !sh.market ? `<div class="hint">top country ${Math.round(r.share * 100)}% of spend</div>` : ''),
+        cell(r.out.business_model, !!sh.model),
+        cell(r.out.aov_band, !!sh.aov),
+        r.spendLocal ? `${fmt(r.spendLocal, 0)} ${esc(r.currency)}` : '<span class="hint">No spend</span>',
+        r.out.industry ? esc(r.out.industry) : '<span class="cf-yellow">To fill in</span>',
+      ];
+    }), 'No accounts found.');
+}
+function suggestTSV(){ return SUG.rows.map(r => SHEET_COLS.map(c => String(r.out[c] ?? '').replace(/[\t\n]/g, ' ')).join('\t')).join('\n'); }
+function suggestCSV(){
+  const q = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return [SHEET_COLS.join(','), ...SUG.rows.map(r => SHEET_COLS.map(c => q(r.out[c])).join(','))].join('\n');
+}
+
+function fmtGId(id){ return String(id).replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3'); }
+function srcLine(src, label){
+  if (!src) return '';
+  const when = src.savedAt ? new Date(src.savedAt).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : '';
+  return `<div class="hint" style="margin-top:4px">${label}: ${esc(src.name)}${src.from === 'file' ? ' · chosen ' + when + ' · stored in this browser' : ''}</div>`;
+}
+function renderSetup(){
+  const p = $('setup-page');
+  let h = `<h2 class="title"><strong>Setup</strong> <em>and data health</em></h2><div class="sub">Everything the dashboard needs, and anything that's stopping an account from appearing.</div>`;
+
+  // status cards
+  const nComplete = S.accounts.filter(isComplete).length;
+  const nElig = S.accounts.filter(benchEligible).length;
+  h += `<div class="grid2" style="margin-top:18px">
+    <div class="card"><div class="s-label">Lookup sheet</div>${S.error ? `<div class="cf-red">${esc(S.error)}</div>` :
+      `<div class="s-value">${S.accounts.length} accounts</div><div class="hint">${nComplete} complete · ${clients().length} clients · loaded ${S.loadedAt ? S.loadedAt.toLocaleTimeString('en-GB') : '—'}</div>`}
+      ${S.fxError ? `<div class="hint cf-yellow" style="margin-top:6px">${esc(S.fxError)}</div>` : `<div class="hint" style="margin-top:6px">FX rates for ${Object.keys(S.fx).length} currencies</div>`}
+      ${srcLine(S.source, 'Accounts')}${srcLine(S.fxSource, 'FX')}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <label class="btn" style="display:inline-block">Choose CSV files<input type="file" id="csv-input" accept=".csv,text/csv" multiple style="display:none"/></label>
+        <button class="btn ghost" id="forget-files">Forget files</button>
+      </div>
+      <div class="hint" id="csv-msg" style="margin-top:6px">Pick accounts.csv, fx.csv and the Google data CSV together (or any one to replace it). They stay in this browser only and are never uploaded.</div></div>
+    <div class="card"><div class="s-label">Meta access</div>${TOKEN ? `<div class="s-value">${META.listed.length} accounts visible</div><div class="hint">Token loaded for this browser tab.</div>${META.noBusiness ? '<div class="hint cf-yellow">Token has no business_management permission, so client names are guessed from account names only.</div>' : ''}${META.listError ? `<div class="hint cf-red">${esc(META.listError)}</div>` : ''}` : '<div class="cf-red">No token.</div>'}
+      <div style="margin-top:10px;display:flex;gap:6px"><input class="ctl" id="token-input" type="password" placeholder="Paste a new access token"/><button class="btn ghost" id="token-save">Use</button></div></div>
+    <div class="card"><div class="s-label">Google Ads data</div>${GD.error ? `<div class="cf-red">${esc(GD.error)}</div>` : GD.loadedAt
+      ? `<div class="s-value">${Object.keys(GD.byId).length} accounts</div><div class="hint">${GD.months[0]} → ${GD.months[GD.months.length - 1]} · ${esc(GD.source?.name || '')}${GD.source?.savedAt ? ' · chosen ' + new Date(GD.source.savedAt).toLocaleString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div>`
+      : '<div class="hint">Not loaded. Export the "Google data" tab written by the Google Ads script as CSV and choose it with the button on the left.</div>'}</div>
+    <div class="card"><div class="s-label">Benchmark-ready</div><div class="s-value">${nElig} accounts</div><div class="hint">${S.accounts.filter(a => a.platform === 'meta' && benchEligible(a)).length} Meta · ${S.accounts.filter(a => a.platform === 'google' && benchEligible(a)).length} Google. Complete in the sheet, included, with data and an FX rate.</div></div>
+  </div>`;
+
+  // A: visible but not in sheet
+  const notInSheet = META.listed.filter(id => !S.byId[id]).map(id => ({ id, ...META.byId[id] }));
+  h += `<h3 class="sec"><strong>Not in the sheet</strong> <em>(${notInSheet.length})</em></h3><p class="hint" style="margin-bottom:8px">Accounts your token can see that have no row in the lookup sheet. Copy them into the Accounts tab, then fill in client and industry.</p>`;
+  if (notInSheet.length) h += `<div style="margin-bottom:8px"><button class="btn ghost" id="copy-missing">Copy as rows (account_id, account_name)</button> <span class="hint" id="copy-msg"></span></div>`;
+  h += tbl(['Account ID', 'Meta name', 'Currency', 'Status'], notInSheet.map(a => [esc(a.id), esc(a.name), esc(a.currency), a.status === 1 ? '<span class="pill ok">Active</span>' : `<span class="pill">${esc(a.status)}</span>`]), 'None. Every account your token can see is in the sheet.');
+
+  // A2: Google accounts in the data file but not in the sheet
+  const gNotInSheet = Object.entries(GD.byId).filter(([id]) => !S.byId[id]).map(([id, g]) => ({ id, ...g, spend: g.rows.reduce((s, r) => s + r.spend, 0) }));
+  if (GD.loadedAt) {
+    h += `<h3 class="sec"><strong>Google accounts</strong> <em>not in the sheet (${gNotInSheet.length})</em></h3><p class="hint" style="margin-bottom:8px">Accounts in the Google data file with no row in the lookup sheet. IDs copy as 123-456-7890 so the dashboard knows they're Google.</p>`;
+    if (gNotInSheet.length) h += `<div style="margin-bottom:8px"><button class="btn ghost" id="copy-g-missing">Copy as rows (account_id, account_name)</button> <span class="hint" id="copy-g-msg"></span></div>`;
+    h += tbl(['Customer ID', 'Google name', 'Currency', 'Spend in file'], gNotInSheet.map(a => [esc(fmtGId(a.id)), esc(a.name), esc(a.currency), `${fmt(a.spend, 0)} ${esc(a.currency)}`]), 'None. Every Google account in the file is in the sheet.');
+  }
+
+  // B: incomplete rows
+  const incomplete = S.accounts.filter(a => !isComplete(a));
+  h += `<h3 class="sec"><strong>Incomplete rows</strong> <em>(${incomplete.length})</em></h3>`;
+  h += tbl(['Account ID', 'Name', 'Client', 'Missing'], incomplete.map(a => [esc(a.id), esc(acctName(a)), esc(a.client || '—'), `<span class="cf-yellow">${a.missing.join(', ')}</span>`]), 'None. Every row has the required fields.');
+
+  // C: access / FX problems
+  const problems = [];
+  S.accounts.forEach(a => {
+    if (a.platform === 'google') {
+      if (!GD.byId[a.id]) problems.push([esc(a.rawId || a.id), esc(a.client || '—'), GD.loadedAt ? '<span class="cf-yellow">Google account with no rows in the Google data file. Check it sits under the MCC the script runs from.</span>' : '<span class="cf-yellow">Google account: load the Google data CSV to include it.</span>']);
+      else if (rateFor(a.id) == null) problems.push([esc(a.rawId || a.id), esc(a.client || '—'), `<span class="cf-yellow">No FX rate for ${esc(currencyOf(a.id))}. Add it to the FX tab.</span>`]);
+      return;
+    }
+    const m = META.byId[a.id];
+    if (!m || m.error) problems.push([esc(a.id), esc(a.client || '—'), `<span class="cf-red">Token can't read it: ${esc(m?.error || 'not checked')}</span>`]);
+    else if (rateFor(a.id) == null) problems.push([esc(a.id), esc(a.client || '—'), `<span class="cf-yellow">No FX rate for ${esc(m.currency)}. Add it to the FX tab.</span>`]);
+  });
+  S.dupes.forEach(id => problems.push([esc(id), esc(S.byId[id]?.client || '—'), '<span class="cf-yellow">Duplicate row in the sheet. Only the first is used.</span>']));
+  Object.entries(B.errors).forEach(([id, e]) => problems.push([esc(id), esc(S.byId[id]?.client || '—'), `<span class="cf-red">Benchmark fetch failed: ${esc(e)}</span>`]));
+  h += `<h3 class="sec"><strong>Access</strong> <em>and currency issues (${problems.length})</em></h3>`;
+  h += tbl(['Account ID', 'Client', 'Issue'], problems, 'None.');
+
+  // E: build rows from Meta
+  h += `<h3 class="sec"><strong>Build rows</strong> <em>from Meta</em></h3>
+    <p class="hint" style="margin-bottom:8px">Suggests client, market, business model and AOV band for every account your token can see, from the last ${CONFIG.SUGGEST_DAYS} days of spend. Values already in your sheet are kept; suggestions only fill blanks. You then add industry.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <button class="btn" id="suggest-run">${SUG.rows ? 'Run again' : 'Build rows from Meta'}</button>
+      ${SUG.rows ? '<button class="btn ghost" id="suggest-copy">Copy rows for the sheet</button><button class="btn ghost" id="suggest-dl">Download as CSV</button>' : ''}
+      <span class="hint" id="suggest-msg">${esc(SUG.msg || '')}</span>
+    </div>
+    <div id="suggest-table">${SUG.rows ? suggestTableHTML() : ''}</div>`;
+
+  // D: coverage by industry
+  const cov = {};
+  S.accounts.filter(benchEligible).forEach(a => { (cov[a.industry] ||= new Set()).add(a.client); });
+  const covRows = uniq('industry').map(ind => { const n = cov[ind]?.size || 0; return [esc(ind), String(n), n >= CONFIG.MIN_CLIENTS ? '<span class="pill ok">Benchmark available</span>' : `<span class="pill warn">Needs ${CONFIG.MIN_CLIENTS - n} more client${CONFIG.MIN_CLIENTS - n === 1 ? '' : 's'}</span>`]; });
+  h += `<h3 class="sec"><strong>Coverage</strong> <em>by industry</em></h3><p class="hint" style="margin-bottom:8px">Benchmark-ready clients per industry. Filters for market, model or AOV band narrow this further.</p>`;
+  h += tbl(['Industry', 'Clients', 'Status'], covRows, 'No industries labelled yet.');
+
+  p.innerHTML = h;
+  $('csv-input')?.addEventListener('change', async e => {
+    const msgs = [];
+    for (const f of e.target.files) {
+      const text = await f.text();
+      const head = (text.split(/\r?\n/)[0] || '').toLowerCase();
+      const kind = head.includes('customer_id') ? 'google' : head.includes('account_id') ? 'accounts' : (head.includes('rate_to_gbp') ? 'fx' : null);
+      if (!kind) { msgs.push(`${f.name}: not recognised (needs an account_id, customer_id or rate_to_gbp column)`); continue; }
+      const rec = { text, name: f.name, savedAt: Date.now() };
+      let ok;
+      if (kind === 'google') ok = await bigStore.set(LOCAL_KEYS.google, rec);
+      else { store.set(LOCAL_KEYS[kind], rec); ok = store.get(LOCAL_KEYS[kind])?.text === text; }
+      msgs.push(ok ? `${f.name}: loaded as ${{ accounts: 'Accounts', fx: 'FX', google: 'Google data' }[kind]}` : `${f.name}: this browser wouldn't save it (storage blocked or full)`);
+    }
+    setText('csv-msg', msgs.join(' · '));
+    await boot(true);
+  });
+  $('suggest-run')?.addEventListener('click', runSuggest);
+  $('suggest-copy')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(suggestTSV()); setText('suggest-msg', `Copied ${SUG.rows.length} rows. Click cell A2 on the Accounts tab and paste.`); }
+    catch { setText('suggest-msg', 'Copy failed. Use Download as CSV instead.'); }
+  });
+  $('suggest-dl')?.addEventListener('click', () => {
+    const blob = new Blob([suggestCSV()], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'accounts_from_meta.csv';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
+  $('forget-files')?.addEventListener('click', () => {
+    try { localStorage.removeItem(LOCAL_KEYS.accounts); localStorage.removeItem(LOCAL_KEYS.fx); } catch {}
+    bigStore.del(LOCAL_KEYS.google);
+    boot(true);
+  });
+  $('token-save')?.addEventListener('click', () => { const v = $('token-input').value.trim(); if (!v) return; try { sessionStorage.setItem('mb_token', v); } catch {} location.reload(); });
+  $('copy-g-missing')?.addEventListener('click', async () => {
+    const tsv = gNotInSheet.map(a => `${fmtGId(a.id)}\t${a.name || ''}`).join('\n');
+    try { await navigator.clipboard.writeText(tsv); setText('copy-g-msg', `Copied ${gNotInSheet.length} rows. Paste into column A of the Accounts tab.`); }
+    catch { setText('copy-g-msg', 'Copy failed. Select the table and copy it manually.'); }
+  });
+  $('copy-missing')?.addEventListener('click', async () => {
+    const tsv = notInSheet.map(a => `${a.id}\t${a.name || ''}`).join('\n');
+    try { await navigator.clipboard.writeText(tsv); setText('copy-msg', `Copied ${notInSheet.length} rows. Paste into column A of the Accounts tab.`); }
+    catch { setText('copy-msg', 'Copy failed. Select the table and copy it manually.'); }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+async function boot(reload = false){
+  setStatus('<div class="dot-loader"><span></span><span></span><span></span></div> Loading lookup sheet…');
+  S.error = null;
+  try { await loadGoogle(); } catch(e) { GD.error = 'Could not read the Google file: ' + e.message; }
+  try { await loadSheet(); }
+  catch(e) {
+    S.error = e.message; S.accounts = []; S.byId = {}; S.dupes = [];
+    if (TOKEN) await loadMetaAccounts();
+    buildClientPicker(); buildMarketNav();
+    setStatus(esc(e.message) + '<br>See the Setup tab.', true); showView('setup'); return;
+  }
+  if (!TOKEN) { buildClientPicker(); setStatus('No access token found. Open this page with ?token=YOUR_TOKEN on the end of the address, or paste one on the Setup tab.', true); showView('setup'); return; }
+  setStatus('<div class="dot-loader"><span></span><span></span><span></span></div> Checking Meta account access…');
+  await loadMetaAccounts();
+  buildClientPicker();
+  resetBenchFiltersForClient();
+  if (reload) currentAccountId = null;
+  buildMarketNav();
+  if (currentView === 'setup') renderSetup();
+}
+boot();
+</script>
+</body>
+</html>
