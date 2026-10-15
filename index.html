@@ -338,6 +338,25 @@
         <div class="tooltip" id="trend-tip"></div>
       </div>
 
+      <h3 class="sec"><strong>Monthly</strong> <em>spend</em></h3>
+      <div class="chart-card" id="sp-card">
+        <div class="chart-head">
+          <select class="ctl" id="sp-range" style="width:auto">
+            <option value="6">Last 6 full months</option>
+            <option value="12" selected>Last 12 full months</option>
+            <option value="18">Last 18 full months</option>
+            <option value="24">Last 24 full months</option>
+          </select>
+          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="sp-lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average spend per client</span></div>
+          <button class="btn ghost" id="sp-table-btn" style="margin-left:auto;padding:6px 10px;font-size:12px">Show table</button>
+        </div>
+        <div id="sp-status" class="status" style="display:none"></div>
+        <div id="sp-chart"></div>
+        <div id="sp-table" style="display:none;margin-top:10px"></div>
+        <p class="hint" id="sp-note" style="margin-top:8px"></p>
+        <div class="tooltip" id="sp-tip"></div>
+      </div>
+
       <h3 class="sec"><strong>Industry</strong> <em>overview</em></h3>
       <p class="hint" style="margin-bottom:8px">Average client by industry, using the market, model, AOV and objective filters above. Unlike the table above, this includes the selected client. "Qualifying clients" is how many meet the minimum spend, out of all clients with any spend; purchase metrics also need a minimum number of purchases, so they can have fewer. Click a row to filter to that industry.</p>
       <div class="table-wrap"><table id="industry-table"></table></div>
@@ -442,7 +461,7 @@ const CONFIG = {
   AGENCY_BUSINESS_NAMES: ['This is GAIN'],  // owning businesses that are us, not the client
   SUGGEST_DAYS: 90,            // look-back for suggested market / model / AOV band
   MARKET_SHARE: 0.75,          // top country needs this share of spend, else Multi-market
-  MIN_CLIENTS: 4,              // hide a benchmark unless at least this many peer clients qualify
+  MIN_CLIENTS: 3,              // hide a benchmark unless at least this many peer clients qualify
   IN_LINE_BAND: 0.05,          // within ±5% of the peer average reads as "in line"
   MIN_PER_HALF: 2,             // typical range needs this many clients in each half (so 4+ peers)
   MIN_SPEND_GBP: 500,          // a peer needs this much spend in the period to count
@@ -1518,6 +1537,7 @@ function renderBench(){
 
   buildTrendMetricOptions();
   renderTrend();
+  renderSpendTrend();
   renderIndustryTable(f);
 }
 
@@ -1618,7 +1638,109 @@ function renderTrend(){
   $('trend-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Lower-half avg</th><th data-r>Upper-half avg</th><th data-r>Peers</th></tr></thead><tbody>` +
     pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${m.f(p.client)}</td><td data-r>${m.f(p.p50)}</td><td data-r>${m.f(p.p25)}</td><td data-r>${m.f(p.p75)}</td><td data-r>${p.n}</td></tr>`).join('') + '</tbody></table></div>';
 }
-window.addEventListener('resize', () => { if (benchReady() && currentView === 'bench') renderTrend(); });
+window.addEventListener('resize', () => { if (benchReady() && currentView === 'bench') { renderTrend(); renderSpendTrend(); } });
+
+// ── Monthly spend: client vs average spend per peer client ──────────
+// Has its own range (default 12 months) so it can look back further than the benchmark period.
+// Peer average = total peer spend that month ÷ number of peer clients that spent at least
+// CONFIG.MIN_SPEND_GBP_MONTH; shown only when CONFIG.MIN_CLIENTS+ peers qualify. Same filters as above.
+const SP = { loading: false };
+function spRange(){ const n = Number($('sp-range').value); const p = benchPeriod(n); return { ...p, n, months: monthsBetween(p.since, p.until) }; }
+function spData(){
+  if (PLAT === 'google') return GD.data || null;
+  const { since, until } = spRange();
+  if (B.since === since && B.until === until && B.loadedAt) return B.data;
+  return META_MEMO[`mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`]?.data || null;
+}
+async function spLoad(){
+  if (SP.loading || !TOKEN) return;
+  const { since, until } = spRange();
+  const ids = benchFetchList(); if (!ids.length) return;
+  SP.loading = true;
+  const st = $('sp-status'); st.style.display = 'block'; st.className = 'status';
+  await fetchMetaInsights(ids, since, until, false, (d, t) => { st.innerHTML = `<div class="dot-loader"><span></span><span></span><span></span></div> Fetching spend history: ${d} of ${t} accounts…`; });
+  SP.loading = false; st.style.display = 'none';
+  renderSpendTrend();
+}
+function spAcctSpend(data, a, f, month){
+  const rate = rateFor(a.id); if (rate == null) return 0;
+  let s = 0;
+  (data[a.id] || []).forEach(r => { if (r.month === month && (!f.objective || r.objective === f.objective) && (!f.markets.length || f.markets.includes(r.country))) s += (r.spend || 0) * rate; });
+  return s;
+}
+function spendSeries(){
+  const data = spData(); if (!data) return null;
+  const f = benchFilters(), { months } = spRange();
+  return months.map(mo => {
+    const byClient = {}; let me = 0, meHas = false;
+    S.accounts.forEach(a => {
+      if (S.byId[a.id] !== a || a.platform !== PLAT || !data[a.id]) return;
+      if (a.client === currentClient) { if (accessible(a.id)) { me += spAcctSpend(data, a, f, mo); meHas = true; } return; }
+      if (!benchEligible(a) || !matchAttrs(a, f)) return;
+      byClient[a.client] = (byClient[a.client] || 0) + spAcctSpend(data, a, f, mo);
+    });
+    const vals = Object.values(byClient).filter(v => v >= CONFIG.MIN_SPEND_GBP_MONTH);
+    const ok = vals.length >= CONFIG.MIN_CLIENTS;
+    return { month: mo, n: vals.length, avg: ok ? vals.reduce((s, v) => s + v, 0) / vals.length : null, client: meHas && me > 0 ? me : null };
+  });
+}
+$('sp-range').addEventListener('change', () => renderSpendTrend());
+$('sp-table-btn').addEventListener('click', () => {
+  const t = $('sp-table'), show = t.style.display === 'none';
+  t.style.display = show ? 'block' : 'none'; $('sp-table-btn').textContent = show ? 'Hide table' : 'Show table';
+});
+function renderSpendTrend(){
+  if (!benchReady() || currentView !== 'bench') return;
+  const box = $('sp-chart'), name = currentClient || 'Client';
+  $('sp-lg-client').textContent = name;
+  $('sp-note').textContent = `Peer average = total peer spend in the month ÷ number of peer clients (each client counts once; a peer needs £${fmt(CONFIG.MIN_SPEND_GBP_MONTH)}+ spend that month). Shown when ${CONFIG.MIN_CLIENTS}+ peers qualify. Uses the industry, market, model, AOV and objective filters above; the selected client is never one of its own peers. GBP.` + (PLAT === 'google' ? ' Google history goes back as far as the uploaded CSV (12 months by default in the script).' : '');
+  const pts = spendSeries();
+  if (!pts) {
+    box.innerHTML = `<div class="status">Spend history for this range isn't loaded yet. <button class="btn" id="sp-load" style="margin-left:8px;padding:6px 12px;font-size:12px">Load ${spRange().n}-month history</button></div>`;
+    $('sp-load').onclick = spLoad; $('sp-table').innerHTML = ''; return;
+  }
+  const vals = pts.flatMap(p => [p.avg, p.client]).filter(v => v != null);
+  if (!vals.length) { box.innerHTML = `<div class="status">Not enough data for a spend trend with these filters.</div>`; $('sp-table').innerHTML = ''; return; }
+  const n = pts.length, W = Math.max(320, box.clientWidth || 720), H = 260, L = 64, R = 104, T = 14;
+  const slot = (W - L - R) / n, tilt = slot < 50, Bm = tilt ? 52 : 30;
+  const hi0 = Math.max(...vals), step = niceStep(hi0 / 4), hi = Math.ceil(hi0 * 1.08 / step) * step || 1;
+  const X = i => L + slot * i + slot / 2, Y = v => T + (H - T - Bm) * (1 - v / hi);
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly spend: ${esc(name)} vs peer average per client">`;
+  for (let v = 0; v <= hi + 1e-9; v += step) svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmtK(v)}</text>`;
+  pts.forEach((p, i) => { svg += tilt
+    ? `<text x="${X(i)}" y="${H - Bm + 14}" text-anchor="end" font-size="11" fill="var(--muted)" transform="rotate(-40 ${X(i)} ${H - Bm + 14})">${monthLabel(p.month)}</text>`
+    : `<text x="${X(i)}" y="${H - 10}" text-anchor="middle" font-size="11" fill="var(--muted)">${monthLabel(p.month)}</text>`; });
+  const line = (key, colour, dash, r) => {
+    let d = '', open = false;
+    pts.forEach((p, i) => { if (p[key] == null) { open = false; return; } d += (open ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p[key]).toFixed(1); open = true; });
+    if (d) svg += `<path d="${d}" fill="none" stroke="${colour}" stroke-width="2" ${dash ? 'stroke-dasharray="5 4"' : ''} stroke-linejoin="round"/>`;
+    pts.forEach((p, i) => { if (p[key] != null) svg += `<circle cx="${X(i)}" cy="${Y(p[key])}" r="${r}" fill="${colour}" stroke="var(--surface)" stroke-width="2"/>`; });
+  };
+  line('avg', 'var(--series-peer)', true, 4); line('client', 'var(--series-client)', false, 4.5);
+  const last = key => { for (let i = n - 1; i >= 0; i--) if (pts[i][key] != null) return i; return -1; };
+  const lc = last('client'), lm = last('avg');
+  let yc = lc >= 0 ? Y(pts[lc].client) : null, ym = lm >= 0 ? Y(pts[lm].avg) : null;
+  if (yc != null && ym != null && Math.abs(yc - ym) < 14) { if (yc < ym) { yc -= 7; ym += 7; } else { yc += 7; ym -= 7; } }
+  if (lc >= 0) svg += `<text x="${X(lc) + 10}" y="${yc + 4}" font-size="11" font-weight="600" fill="var(--ink)">${esc(name.slice(0, 14))}</text>`;
+  if (lm >= 0) svg += `<text x="${X(lm) + 10}" y="${ym + 4}" font-size="11" fill="var(--muted)">Peer average</text>`;
+  pts.forEach((p, i) => { svg += `<rect class="hit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - Bm}" fill="transparent"/>`; });
+  box.innerHTML = svg + '</svg>';
+  const diff = p => p.client != null && p.avg ? (p.client / p.avg - 1) : null;
+  const diffTxt = p => { const d = diff(p); return d == null ? '—' : (d >= 0 ? '+' : '') + fmt(d * 100, 0) + '%'; };
+  const tip = $('sp-tip'), card = $('sp-card');
+  box.querySelectorAll('.hit').forEach(r => {
+    r.addEventListener('mousemove', e => {
+      const p = pts[+r.dataset.i];
+      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(name)}</span><span>${p.client != null ? fmtGBP(p.client) : '—'}</span></div><div class="row"><span>Peer average per client</span><span>${p.avg != null ? fmtGBP(p.avg) : (p.n ? 'too few peers' : '—')}</span></div><div class="row"><span>vs peer average</span><span>${diffTxt(p)}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>`;
+      const cr = card.getBoundingClientRect();
+      let x = e.clientX - cr.left + 14; if (x > cr.width - 220) x = e.clientX - cr.left - 220;
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
+    });
+    r.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+  $('sp-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(name)}</th><th data-r>Peer average per client</th><th data-r>vs peer average</th><th data-r>Peers</th></tr></thead><tbody>` +
+    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${p.client != null ? fmtGBP(p.client) : '—'}</td><td data-r>${p.avg != null ? fmtGBP(p.avg) : `<span class="hint">${p.n ? 'too few' : '—'}</span>`}</td><td data-r>${diffTxt(p)}</td><td data-r>${p.n}</td></tr>`).join('') + '</tbody></table></div>';
+}
 
 // ── Industry overview
 function renderIndustryTable(f){
@@ -1660,7 +1782,7 @@ function mbRowsFor(a){ return a.platform === 'meta' ? (mbMetaData() || {})[a.id]
 // Channel a row belongs to: Meta, or the Google campaign type
 function mbRowCh(a, r){ return a.platform === 'meta' ? 'META' : gSeries(r.objective); }
 const MB_CHANNELS = ['META','SEARCH','PERFORMANCE_MAX','SHOPPING','VIDEO','DEMAND_GEN','G_OTHER'];
-const MB_CH_LABEL = { META:'Meta', SEARCH:'Search', PERFORMANCE_MAX:'Performance Max', SHOPPING:'Shopping', VIDEO:'YouTube / Video', DEMAND_GEN:'Demand Gen', G_OTHER:'Google other', OTHER:'Other (fewer than 4 clients)' };
+const MB_CH_LABEL = { META:'Meta', SEARCH:'Search', PERFORMANCE_MAX:'Performance Max', SHOPPING:'Shopping', VIDEO:'YouTube / Video', DEMAND_GEN:'Demand Gen', G_OTHER:'Google other', get OTHER(){ return `Other (fewer than ${CONFIG.MIN_CLIENTS} clients)`; } };
 const MB_CH_COLOR = { META:'var(--s1)', SEARCH:'var(--s4)', PERFORMANCE_MAX:'var(--s2)', SHOPPING:'var(--s3)', VIDEO:'var(--s6)', DEMAND_GEN:'var(--s5)', G_OTHER:'var(--s7)', OTHER:'var(--faint)' };
 function fmtK(v){ if (v == null || isNaN(v)) return '—'; const a = Math.abs(v); return a >= 1e6 ? '£' + (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'm' : a >= 1e3 ? '£' + (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : '£' + Math.round(v); }
 
