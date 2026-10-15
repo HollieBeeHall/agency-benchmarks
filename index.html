@@ -177,6 +177,7 @@
   .bench-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 4px; }
   .pos-svg { display: block; }
   .verdict { font-size: 12px; }
+  .yoy { font-weight: 600; } .yoy.good { color: var(--good); } .yoy.bad { color: var(--bad); }
   .verdict.good { color: var(--good); } .verdict.bad { color: var(--bad); } .verdict.mid { color: var(--muted); }
   .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; position: relative; }
   .chart-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -330,7 +331,8 @@
       <div class="chart-card" id="trend-card">
         <div class="chart-head">
           <select class="ctl" id="trend-metric" style="width:auto"></select>
-          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average</span><span><i class="band"></i>Typical range (lower-half to upper-half average)</span></div>
+          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average</span><span><i class="band"></i>Typical range (lower-half to upper-half average)</span><span id="lg-trend-ly" style="display:none"><i style="border-color:var(--muted);border-top-style:dotted"></i>Same month last year</span></div>
+          <label class="axis-toggle" style="margin:0"><input type="checkbox" id="trend-ly"/> Compare to last year</label>
           <button class="btn ghost" id="trend-table-btn" style="margin-left:auto;padding:6px 10px;font-size:12px">Show table</button>
         </div>
         <div id="trend-chart"></div>
@@ -347,7 +349,8 @@
             <option value="18">Last 18 full months</option>
             <option value="24">Last 24 full months</option>
           </select>
-          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="sp-lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average spend per client</span></div>
+          <div class="legend"><span><i style="border-color:var(--series-client)"></i><span id="sp-lg-client">Client</span></span><span><i style="border-color:var(--series-peer);border-top-style:dashed"></i>Peer average spend per client</span><span id="lg-sp-ly" style="display:none"><i style="border-color:var(--muted);border-top-style:dotted"></i>Same month last year</span></div>
+          <label class="axis-toggle" style="margin:0"><input type="checkbox" id="sp-ly"/> Compare to last year</label>
           <button class="btn ghost" id="sp-table-btn" style="margin-left:auto;padding:6px 10px;font-size:12px">Show table</button>
         </div>
         <div id="sp-status" class="status" style="display:none"></div>
@@ -470,6 +473,8 @@ const CONFIG = {
   MIN_PURCHASES_MONTH: 5,
   CONCURRENCY: 5,              // parallel Meta requests
   CACHE_HOURS: 12,
+  HISTORY_MONTHS: 24,          // Meta history kept in the browser: every period and YoY comparison is cut from it
+  REFRESH_MONTHS: 2,           // on refresh, only these most recent months are refetched
 };
 
 const BASE = `https://graph.facebook.com/${CONFIG.GRAPH_VERSION}`;
@@ -1258,44 +1263,93 @@ function benchFetchList(){
 }
 
 // Meta monthly insights per account, split by objective and delivery country (local currency).
-// Shared by Benchmarks and Overview; cached in memory and (when it fits) in the browser.
-const META_MEMO = {};
-async function fetchMetaInsights(ids, since, until, force, onProg){
-  const key = `mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`;
-  let entry = !force && META_MEMO[key];
-  if (!entry) {
-    const cached = !force && store.get(key);
-    const fresh = cached && Date.now() - cached.savedAt < CONFIG.CACHE_HOURS * 3600e3 ? cached : null;
-    entry = { data: fresh ? fresh.data : {}, errors: fresh ? (fresh.errors || {}) : {}, savedAt: fresh ? fresh.savedAt : Date.now() };
-  }
-  const { data, errors } = entry;
-  const todo = ids.filter(id => !data[id]);
-  let done = 0;
-  if (todo.length && onProg) onProg(0, todo.length);
-  await pool(todo, CONFIG.CONCURRENCY, async id => {
-    try {
-      const rows = await fetchAllPages(`act_${id}/insights`, {
-        level: 'campaign', time_increment: 'monthly',
-        time_range: JSON.stringify({ since, until }),
-        breakdowns: 'country',
-        fields: 'campaign_id,objective,date_start,spend,impressions,inline_link_clicks,actions,action_values',
-        ...ATTR_PARAMS, limit: 500,
-      });
-      const agg = {};
-      rows.forEach(r => {
-        const country = countryToMarket(r.country);
-        const k = r.date_start.slice(0,7) + '|' + (r.objective || 'UNKNOWN') + '|' + country;
-        if (!agg[k]) agg[k] = { month: r.date_start.slice(0,7), objective: r.objective || 'UNKNOWN', country, ...zero() };
-        addTo(agg[k], { spend: parseFloat(r.spend) || 0, impressions: parseInt(r.impressions) || 0, clicks: parseInt(r.inline_link_clicks) || 0,
-          purchases: actionVal(r.actions, PURCHASE_TYPES), revenue: actionVal(r.action_values, PURCHASE_TYPES) });
-      });
-      data[id] = Object.values(agg); delete errors[id];
-    } catch(e) { errors[id] = e.message; }
-    done++; if (onProg) onProg(done, todo.length);
+// Fetched ONCE per account for a rolling history window (CONFIG.HISTORY_MONTHS full months) and kept in
+// this browser (IndexedDB). Every period, YoY comparison and the Overview slice this history, so changing
+// the time frame never refetches. After CONFIG.CACHE_HOURS (or on Refresh) only the most recent
+// CONFIG.REFRESH_MONTHS months are refetched and merged in; a new month rolling over is picked up the same way.
+const HIST_KEY = 'pm_meta_hist_v1';
+const HIST = { ready: false, since: null, until: null, attr: null, data: {}, errors: {}, at: {}, upto: {} };
+function histWindow(){ return benchPeriod(CONFIG.HISTORY_MONTHS); }
+async function histInit(){
+  if (HIST.ready) return;
+  const saved = await bigStore.get(HIST_KEY);
+  const attr = CONFIG.ATTRIBUTION.join('+');
+  if (saved && saved.attr === attr && saved.data) Object.assign(HIST, saved);
+  HIST.attr = attr; HIST.ready = true;
+  try { Object.keys(localStorage).filter(k => k.startsWith('mb_bench_v')).forEach(k => localStorage.removeItem(k)); } catch {}  // old per-period caches
+}
+async function histSave(){
+  const { since, until, attr, data, errors, at, upto } = HIST;
+  await bigStore.set(HIST_KEY, { since, until, attr, data, errors, at, upto });
+}
+function histData(){ return HIST.ready && Object.keys(HIST.data).length ? HIST.data : null; }
+function addMonthsISO(iso, n){ const d = parseISO(iso.slice(0, 7) + '-01'); d.setMonth(d.getMonth() + n); return isoDate(d); }
+async function fetchMetaRows(id, since, until){
+  const rows = await fetchAllPages(`act_${id}/insights`, {
+    level: 'campaign', time_increment: 'monthly',
+    time_range: JSON.stringify({ since, until }),
+    breakdowns: 'country',
+    fields: 'campaign_id,objective,date_start,spend,impressions,inline_link_clicks,actions,action_values',
+    ...ATTR_PARAMS, limit: 500,
   });
-  META_MEMO[key] = entry;
-  if (todo.length) store.set(key, { data, errors, savedAt: entry.savedAt });
-  return { key, data, errors };
+  const agg = {};
+  rows.forEach(r => {
+    const country = countryToMarket(r.country);
+    const k = r.date_start.slice(0,7) + '|' + (r.objective || 'UNKNOWN') + '|' + country;
+    if (!agg[k]) agg[k] = { month: r.date_start.slice(0,7), objective: r.objective || 'UNKNOWN', country, ...zero() };
+    addTo(agg[k], { spend: parseFloat(r.spend) || 0, impressions: parseInt(r.impressions) || 0, clicks: parseInt(r.inline_link_clicks) || 0,
+      purchases: actionVal(r.actions, PURCHASE_TYPES), revenue: actionVal(r.action_values, PURCHASE_TYPES) });
+  });
+  return Object.values(agg);
+}
+// ids: accounts needed. since/until are ignored for fetching (history covers them); kept for callers.
+async function fetchMetaInsights(ids, since, until, force, onProg){
+  await histInit();
+  const w = histWindow(), wFirst = w.since.slice(0, 7);
+  HIST.since = w.since; HIST.until = w.until;
+  const stale = id => force || (HIST.upto[id] || '') < w.until || Date.now() - (HIST.at[id] || 0) > CONFIG.CACHE_HOURS * 3600e3;
+  const jobs = ids.map(id => {
+    if (!HIST.data[id]) return { id, since: w.since };
+    if (!stale(id)) return null;
+    // refetch the recent months, plus anything since this account was last fetched
+    const recent = addMonthsISO(w.until, -(CONFIG.REFRESH_MONTHS - 1));
+    const sinceLast = HIST.upto[id] ? addMonthsISO(HIST.upto[id], -1) : w.since;
+    let from = sinceLast < recent ? sinceLast : recent; if (from < w.since) from = w.since;
+    return { id, since: from };
+  }).filter(Boolean);
+  let done = 0;
+  if (jobs.length && onProg) onProg(0, jobs.length);
+  await pool(jobs, CONFIG.CONCURRENCY, async job => {
+    try {
+      const fresh = await fetchMetaRows(job.id, job.since, w.until);
+      const cut = job.since.slice(0, 7);
+      const kept = (HIST.data[job.id] || []).filter(r => r.month < cut && r.month >= wFirst);
+      HIST.data[job.id] = kept.concat(fresh);
+      HIST.at[job.id] = Date.now(); HIST.upto[job.id] = w.until; delete HIST.errors[job.id];
+    } catch(e) { HIST.errors[job.id] = e.message; }
+    done++; if (onProg) onProg(done, jobs.length);
+  });
+  // trim months that have rolled out of the window
+  Object.keys(HIST.data).forEach(id => { if (HIST.data[id].some(r => r.month < wFirst)) HIST.data[id] = HIST.data[id].filter(r => r.month >= wFirst); });
+  if (jobs.length) await histSave();
+  const errors = {}; ids.forEach(id => { if (HIST.errors[id]) errors[id] = HIST.errors[id]; });
+  return { key: 'hist', data: HIST.data, errors };
+}
+
+// ── Year-on-year helpers
+function lyMonth(mo){ const [y, m] = mo.split('-'); return (Number(y) - 1) + '-' + m; }
+function lyMonths(ms){ return ms.map(lyMonth); }
+// Is there data for these months? Meta: inside the history window. Google: inside the uploaded CSV.
+function hasMonths(ms, plat = PLAT){
+  if (!ms.length) return false;
+  if (plat === 'google') return GD.months.includes(ms[0]) && GD.months.includes(ms[ms.length - 1]);
+  return !!HIST.since && ms[0] >= HIST.since.slice(0, 7);
+}
+function yoyPct(now, then){ return now == null || then == null || !then ? null : now / then - 1; }
+function yoyHTML(d, lower, neutral){
+  if (d == null) return '<span class="hint">—</span>';
+  const good = lower ? d < 0 : d > 0, flat = Math.abs(d) < 0.005;
+  return `<span class="yoy ${neutral || flat ? '' : good ? 'good' : 'bad'}">${flat ? '' : d > 0 ? '+' : '−'}${fmt(Math.abs(d) * 100, 0)}%</span>`;
 }
 
 async function loadBench(force = false){
@@ -1339,7 +1393,7 @@ function uniq(key, rows = S.accounts){ return [...new Set(rows.map(a => a[key]).
 // Markets to offer: countries found in the loaded data, ordered by total spend
 function dataCountries(){
   const sp = {};
-  Object.entries(srcData()).forEach(([id, rows]) => { if (S.byId[id]?.platform !== PLAT) return; const r8 = rateFor(id) || 0; rows.forEach(r => sp[r.country] = (sp[r.country] || 0) + r.spend * r8); });
+  Object.entries(srcData()).forEach(([id, rows]) => { if (S.byId[id]?.platform !== PLAT) return; const r8 = rateFor(id) || 0; const ms = curMonths(); rows.forEach(r => { if (ms.includes(r.month)) sp[r.country] = (sp[r.country] || 0) + r.spend * r8; }); });
   return Object.keys(sp).filter(c => sp[c] > 0).sort((a,b) => sp[b] - sp[a]);
 }
 function marketOptions(){ return benchReady() ? dataCountries() : []; }
@@ -1486,6 +1540,9 @@ function renderBench(){
   if (!benchReady()) return;
   const f = benchFilters();
   const peers = peerUnits(f), me = clientUnit(f);
+  // Same filters, same months last year
+  const fLY = { ...f, months: lyMonths(f.months) }, lyOk = hasMonths(fLY.months);
+  const peersLY = lyOk ? peerUnits(fLY) : [], meLY = lyOk ? clientUnit(fLY) : null;
   $('bench-status').style.display = 'none'; $('bench-body').style.display = 'block';
   setText('lg-client', currentClient || 'Client');
 
@@ -1501,7 +1558,7 @@ function renderBench(){
     `<span class="pill">Loaded ${(PLAT === 'google' ? GD.loadedAt : B.loadedAt).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})}</span>`,
   ].join('');
 
-  let h = `<thead><tr><th>Metric</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Typical range</th><th>Position <span class="hint" style="text-transform:none;letter-spacing:0">(right = better)</span></th><th>Verdict</th><th data-r>Peers</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Metric</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Typical range</th><th>Position <span class="hint" style="text-transform:none;letter-spacing:0">(right = better)</span></th><th>Verdict</th><th data-r>Peers</th><th data-r title="Change vs the same months last year">${esc(currentClient || 'Client')} YoY</th><th data-r title="Change in the peer average vs the same months last year">Peer avg YoY</th></tr></thead><tbody>`;
   BMETRICS.forEach(m => {
     const st = stats(peers, m, false);
     const cv = me && qualifies(me, m, false) ? me[m.k] : (me ? me[m.k] : null);
@@ -1526,14 +1583,19 @@ function renderBench(){
       const beats = Math.round(share * st.n);
       verdict += `<div class="hint">Beats ${beats} of ${st.n} peers</div>`;
     }
+    const stLY = stats(peersLY, m, false);
+    const cvLY = meLY && meLY.spend > 0 ? meLY[m.k] : null;
+    const cYoY = yoyPct(cv, cvLY), pYoY = enough && stLY.n >= CONFIG.MIN_CLIENTS ? yoyPct(st.avg, stLY.avg) : null;
+    const lyCell = d => lyOk ? yoyHTML(d, m.lower) : '<span class="hint" title="No data for the same months last year">n/a</span>';
     h += `<tr><td><strong>${mLabel(m)}</strong>${m.lower ? ' <span class="hint">lower is better</span>' : ''}</td>
       <td data-r><strong>${m.f(cv)}</strong></td>
       <td data-r>${enough ? m.f(st.avg) : '—'}</td><td data-r>${enough ? rangeText(st, m) : '—'}</td>
       <td>${enough ? posBar(st, cv, m) : ''}</td>
-      <td class="verdict ${vcls}">${verdict}</td><td data-r>${st.n}</td></tr>`;
+      <td class="verdict ${vcls}">${verdict}</td><td data-r>${st.n}</td>
+      <td data-r>${lyCell(cYoY)}</td><td data-r>${lyCell(pYoY)}</td></tr>`;
   });
   $('bench-table').innerHTML = h + '</tbody>';
-  $('bench-rules').textContent = `Each peer is one client, pooled across its accounts that match the filters. ${PLAT === 'google' ? 'Google figures use purchase-category conversions with each account\'s own attribution settings, split by campaign type. ' : ''}Markets use the country each ad was delivered in, so a multi-country account only counts its spend and results in the markets selected. A peer counts if it spent at least £${fmt(CONFIG.MIN_SPEND_GBP)} in the period, plus at least ${CONFIG.MIN_PURCHASES} purchases for purchase metrics. A benchmark only shows when ${CONFIG.MIN_CLIENTS}+ peers qualify. Peer average is the simple average of peer clients (each client counts once). Typical range runs from the average of the lower half of peers to the average of the upper half, shown once there are ${CONFIG.MIN_PER_HALF * 2}+ peers. No figure is a single client's result, and peer names are never shown.`;
+  $('bench-rules').textContent = `Each peer is one client, pooled across its accounts that match the filters. ${PLAT === 'google' ? 'Google figures use purchase-category conversions with each account\'s own attribution settings, split by campaign type. ' : ''}Markets use the country each ad was delivered in, so a multi-country account only counts its spend and results in the markets selected. A peer counts if it spent at least £${fmt(CONFIG.MIN_SPEND_GBP)} in the period, plus at least ${CONFIG.MIN_PURCHASES} purchases for purchase metrics. A benchmark only shows when ${CONFIG.MIN_CLIENTS}+ peers qualify. Peer average is the simple average of peer clients (each client counts once). Typical range runs from the average of the lower half of peers to the average of the upper half, shown once there are ${CONFIG.MIN_PER_HALF * 2}+ peers. No figure is a single client's result, and peer names are never shown. YoY compares the same months a year earlier with the same filters; the peer YoY compares this year's peer average with last year's (the peer group can differ between years). Green means better, red worse.` + (lyOk ? '' : ' YoY shows n/a because there is no data for the same months last year' + (PLAT === 'google' ? ' in the Google CSV (raise MONTHS_BACK in the script).' : '.'));
 
   buildTrendMetricOptions();
   renderTrend();
@@ -1566,6 +1628,7 @@ function buildTrendMetricOptions(){
   el.value = prev;
 }
 $('trend-metric').addEventListener('change', () => renderTrend());
+$('trend-ly').addEventListener('change', () => { $('lg-trend-ly').style.display = $('trend-ly').checked ? '' : 'none'; renderTrend(); });
 $('trend-table-btn').addEventListener('click', () => {
   const t = $('trend-table'), show = t.style.display === 'none';
   t.style.display = show ? 'block' : 'none'; $('trend-table-btn').textContent = show ? 'Hide table' : 'Show table';
@@ -1575,7 +1638,12 @@ function trendSeries(){
   const pts = curMonths().map(mo => {
     const st = stats(peerUnits(f, mo), m, true), me = clientUnit(f, mo);
     const ok = st.n >= CONFIG.MIN_CLIENTS;
-    return { month: mo, n: st.n, p25: ok ? st.lo : null, p50: ok ? st.avg : null, p75: ok ? st.hi : null, client: me && me.spend > 0 ? me[m.k] : null };
+    const out = { month: mo, n: st.n, p25: ok ? st.lo : null, p50: ok ? st.avg : null, p75: ok ? st.hi : null, client: me && me.spend > 0 ? me[m.k] : null, clientLY: null, p50LY: null };
+    if ($('trend-ly').checked && hasMonths([lyMonth(mo)])) {
+      const stL = stats(peerUnits({ ...f, months: [lyMonth(mo)] }, lyMonth(mo)), m, true), meL = clientUnit(f, lyMonth(mo));
+      out.p50LY = stL.n >= CONFIG.MIN_CLIENTS ? stL.avg : null; out.clientLY = meL && meL.spend > 0 ? meL[m.k] : null;
+    }
+    return out;
   });
   return { m, pts };
 }
@@ -1585,7 +1653,7 @@ function renderTrend(){
   const { m, pts } = trendSeries();
   const box = $('trend-chart');
   const W = Math.max(320, box.clientWidth || 720), H = 260, L = 64, R = 96, T = 14, Bm = 30;
-  const vals = pts.flatMap(p => [p.p25, p.p75, p.p50, p.client]).filter(v => v != null);
+  const vals = pts.flatMap(p => [p.p25, p.p75, p.p50, p.client, p.p50LY, p.clientLY]).filter(v => v != null);
   if (!vals.length) { box.innerHTML = `<div class="status">Not enough data for a ${esc(mLabel(m))} trend with these filters.</div>`; $('trend-table').innerHTML = ''; return; }
   let lo = Math.min(...vals), hi = Math.max(...vals); if (hi === lo) hi = lo + 1;
   lo = Math.max(0, lo - (hi - lo) * 0.15); hi = hi + (hi - lo) * 0.1;
@@ -1615,6 +1683,8 @@ function renderTrend(){
   ticks.forEach(t => { svg += `<line x1="${L}" x2="${W-R}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--border)"/><text x="${L-8}" y="${Y(t)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${m.f(t)}</text>`; });
   pts.forEach((p, i) => { if (n <= 12 || i % 2 === 0) svg += `<text x="${X(i)}" y="${H-10}" text-anchor="middle" font-size="11" fill="var(--muted)">${monthLabel(p.month)}</text>`; });
   svg += band;
+  seg('p50LY').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-peer)" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round" opacity=".7"/>`; });
+  seg('clientLY').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-client)" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round" opacity=".75"/>`; r.forEach(p => svg += `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="var(--series-client)" opacity=".6"/>`); });
   seg('p50').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-peer)" stroke-width="2" stroke-dasharray="5 4"/>`; r.forEach(p => svg += `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--series-peer)" stroke="var(--surface)" stroke-width="2"/>`); });
   seg('client').forEach(r => { svg += `<path d="${path(r)}" fill="none" stroke="var(--series-client)" stroke-width="2"/>`; r.forEach(p => svg += `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="var(--series-client)" stroke="var(--surface)" stroke-width="2"/>`); });
   if (lc >= 0) svg += `<text x="${X(lc)+10}" y="${lyC+4}" font-size="11" font-weight="600" fill="var(--ink)">${esc((currentClient || 'Client').slice(0, 14))}</text>`;
@@ -1627,7 +1697,8 @@ function renderTrend(){
   box.querySelectorAll('.hit').forEach(r => {
     r.addEventListener('mousemove', e => {
       const p = pts[+r.dataset.i];
-      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(currentClient || 'Client')}</span><span>${m.f(p.client)}</span></div><div class="row"><span>Peer average</span><span>${m.f(p.p50)}</span></div><div class="row"><span>Typical range</span><span>${p.p25 != null ? m.f(p.p25) + ' – ' + m.f(p.p75) : '—'}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>`;
+      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(currentClient || 'Client')}</span><span>${m.f(p.client)}</span></div><div class="row"><span>Peer average</span><span>${m.f(p.p50)}</span></div><div class="row"><span>Typical range</span><span>${p.p25 != null ? m.f(p.p25) + ' – ' + m.f(p.p75) : '—'}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>` +
+        ($('trend-ly').checked ? `<div class="row"><span>${esc(currentClient || 'Client')} last year</span><span>${m.f(p.clientLY)} ${yoyHTML(yoyPct(p.client, p.clientLY), m.lower)}</span></div><div class="row"><span>Peer avg last year</span><span>${m.f(p.p50LY)} ${yoyHTML(yoyPct(p.p50, p.p50LY), m.lower)}</span></div>` : '');
       const cr = card.getBoundingClientRect();
       let x = e.clientX - cr.left + 14; if (x > cr.width - 190) x = e.clientX - cr.left - 190;
       tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
@@ -1635,8 +1706,8 @@ function renderTrend(){
     r.addEventListener('mouseleave', () => tip.style.display = 'none');
   });
 
-  $('trend-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Lower-half avg</th><th data-r>Upper-half avg</th><th data-r>Peers</th></tr></thead><tbody>` +
-    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${m.f(p.client)}</td><td data-r>${m.f(p.p50)}</td><td data-r>${m.f(p.p25)}</td><td data-r>${m.f(p.p75)}</td><td data-r>${p.n}</td></tr>`).join('') + '</tbody></table></div>';
+  $('trend-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(currentClient || 'Client')}</th><th data-r>Peer average</th><th data-r>Lower-half avg</th><th data-r>Upper-half avg</th><th data-r>Peers</th>${$('trend-ly').checked ? '<th data-r>Client last year</th><th data-r>Client YoY</th><th data-r>Peer avg last year</th><th data-r>Peer avg YoY</th>' : ''}</tr></thead><tbody>` +
+    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${m.f(p.client)}</td><td data-r>${m.f(p.p50)}</td><td data-r>${m.f(p.p25)}</td><td data-r>${m.f(p.p75)}</td><td data-r>${p.n}</td>${$('trend-ly').checked ? `<td data-r>${m.f(p.clientLY)}</td><td data-r>${yoyHTML(yoyPct(p.client, p.clientLY), m.lower)}</td><td data-r>${m.f(p.p50LY)}</td><td data-r>${yoyHTML(yoyPct(p.p50, p.p50LY), m.lower)}</td>` : ''}</tr>`).join('') + '</tbody></table></div>';
 }
 window.addEventListener('resize', () => { if (benchReady() && currentView === 'bench') { renderTrend(); renderSpendTrend(); } });
 
@@ -1648,9 +1719,7 @@ const SP = { loading: false };
 function spRange(){ const n = Number($('sp-range').value); const p = benchPeriod(n); return { ...p, n, months: monthsBetween(p.since, p.until) }; }
 function spData(){
   if (PLAT === 'google') return GD.data || null;
-  const { since, until } = spRange();
-  if (B.since === since && B.until === until && B.loadedAt) return B.data;
-  return META_MEMO[`mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`]?.data || null;
+  return histData();
 }
 async function spLoad(){
   if (SP.loading || !TOKEN) return;
@@ -1670,8 +1739,8 @@ function spAcctSpend(data, a, f, month){
 }
 function spendSeries(){
   const data = spData(); if (!data) return null;
-  const f = benchFilters(), { months } = spRange();
-  return months.map(mo => {
+  const f = benchFilters(), { months } = spRange(), ly = $('sp-ly').checked;
+  const one = mo => {
     const byClient = {}; let me = 0, meHas = false;
     S.accounts.forEach(a => {
       if (S.byId[a.id] !== a || a.platform !== PLAT || !data[a.id]) return;
@@ -1682,9 +1751,15 @@ function spendSeries(){
     const vals = Object.values(byClient).filter(v => v >= CONFIG.MIN_SPEND_GBP_MONTH);
     const ok = vals.length >= CONFIG.MIN_CLIENTS;
     return { month: mo, n: vals.length, avg: ok ? vals.reduce((s, v) => s + v, 0) / vals.length : null, client: meHas && me > 0 ? me : null };
+  };
+  return months.map(mo => {
+    const p = one(mo);
+    if (ly && hasMonths([lyMonth(mo)])) { const q = one(lyMonth(mo)); p.avgLY = q.avg; p.clientLY = q.client; } else { p.avgLY = null; p.clientLY = null; }
+    return p;
   });
 }
 $('sp-range').addEventListener('change', () => renderSpendTrend());
+$('sp-ly').addEventListener('change', () => { $('lg-sp-ly').style.display = $('sp-ly').checked ? '' : 'none'; renderSpendTrend(); });
 $('sp-table-btn').addEventListener('click', () => {
   const t = $('sp-table'), show = t.style.display === 'none';
   t.style.display = show ? 'block' : 'none'; $('sp-table-btn').textContent = show ? 'Hide table' : 'Show table';
@@ -1699,7 +1774,7 @@ function renderSpendTrend(){
     box.innerHTML = `<div class="status">Spend history for this range isn't loaded yet. <button class="btn" id="sp-load" style="margin-left:8px;padding:6px 12px;font-size:12px">Load ${spRange().n}-month history</button></div>`;
     $('sp-load').onclick = spLoad; $('sp-table').innerHTML = ''; return;
   }
-  const vals = pts.flatMap(p => [p.avg, p.client]).filter(v => v != null);
+  const vals = pts.flatMap(p => [p.avg, p.client, p.avgLY, p.clientLY]).filter(v => v != null);
   if (!vals.length) { box.innerHTML = `<div class="status">Not enough data for a spend trend with these filters.</div>`; $('sp-table').innerHTML = ''; return; }
   const n = pts.length, W = Math.max(320, box.clientWidth || 720), H = 260, L = 64, R = 104, T = 14;
   const slot = (W - L - R) / n, tilt = slot < 50, Bm = tilt ? 52 : 30;
@@ -1716,6 +1791,10 @@ function renderSpendTrend(){
     if (d) svg += `<path d="${d}" fill="none" stroke="${colour}" stroke-width="2" ${dash ? 'stroke-dasharray="5 4"' : ''} stroke-linejoin="round"/>`;
     pts.forEach((p, i) => { if (p[key] != null) svg += `<circle cx="${X(i)}" cy="${Y(p[key])}" r="${r}" fill="${colour}" stroke="var(--surface)" stroke-width="2"/>`; });
   };
+  const lyLine = (key, colour) => { let d = '', open = false;
+    pts.forEach((p, i) => { if (p[key] == null) { open = false; return; } d += (open ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p[key]).toFixed(1); open = true; });
+    if (d) svg += `<path d="${d}" fill="none" stroke="${colour}" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round" opacity=".75"/>`; };
+  lyLine('avgLY', 'var(--series-peer)'); lyLine('clientLY', 'var(--series-client)');
   line('avg', 'var(--series-peer)', true, 4); line('client', 'var(--series-client)', false, 4.5);
   const last = key => { for (let i = n - 1; i >= 0; i--) if (pts[i][key] != null) return i; return -1; };
   const lc = last('client'), lm = last('avg');
@@ -1731,15 +1810,16 @@ function renderSpendTrend(){
   box.querySelectorAll('.hit').forEach(r => {
     r.addEventListener('mousemove', e => {
       const p = pts[+r.dataset.i];
-      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(name)}</span><span>${p.client != null ? fmtGBP(p.client) : '—'}</span></div><div class="row"><span>Peer average per client</span><span>${p.avg != null ? fmtGBP(p.avg) : (p.n ? 'too few peers' : '—')}</span></div><div class="row"><span>vs peer average</span><span>${diffTxt(p)}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>`;
+      tip.innerHTML = `<b>${monthLabel(p.month)}</b><div class="row"><span>${esc(name)}</span><span>${p.client != null ? fmtGBP(p.client) : '—'}</span></div><div class="row"><span>Peer average per client</span><span>${p.avg != null ? fmtGBP(p.avg) : (p.n ? 'too few peers' : '—')}</span></div><div class="row"><span>vs peer average</span><span>${diffTxt(p)}</span></div><div class="row"><span>Peers</span><span>${p.n}${p.n < CONFIG.MIN_CLIENTS ? ' (too few)' : ''}</span></div>` +
+        ($('sp-ly').checked ? `<div class="row"><span>${esc(name)} last year</span><span>${p.clientLY != null ? fmtGBP(p.clientLY) : '—'} ${yoyHTML(yoyPct(p.client, p.clientLY), false, true)}</span></div><div class="row"><span>Peer avg last year</span><span>${p.avgLY != null ? fmtGBP(p.avgLY) : '—'} ${yoyHTML(yoyPct(p.avg, p.avgLY), false, true)}</span></div>` : '');
       const cr = card.getBoundingClientRect();
       let x = e.clientX - cr.left + 14; if (x > cr.width - 220) x = e.clientX - cr.left - 220;
       tip.style.left = x + 'px'; tip.style.top = (e.clientY - cr.top + 10) + 'px'; tip.style.display = 'block';
     });
     r.addEventListener('mouseleave', () => tip.style.display = 'none');
   });
-  $('sp-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(name)}</th><th data-r>Peer average per client</th><th data-r>vs peer average</th><th data-r>Peers</th></tr></thead><tbody>` +
-    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${p.client != null ? fmtGBP(p.client) : '—'}</td><td data-r>${p.avg != null ? fmtGBP(p.avg) : `<span class="hint">${p.n ? 'too few' : '—'}</span>`}</td><td data-r>${diffTxt(p)}</td><td data-r>${p.n}</td></tr>`).join('') + '</tbody></table></div>';
+  $('sp-table').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Month</th><th data-r>${esc(name)}</th><th data-r>Peer average per client</th><th data-r>vs peer average</th><th data-r>Peers</th>${$('sp-ly').checked ? '<th data-r>Client YoY</th><th data-r>Peer avg YoY</th>' : ''}</tr></thead><tbody>` +
+    pts.map(p => `<tr><td>${monthLabel(p.month)}</td><td data-r>${p.client != null ? fmtGBP(p.client) : '—'}</td><td data-r>${p.avg != null ? fmtGBP(p.avg) : `<span class="hint">${p.n ? 'too few' : '—'}</span>`}</td><td data-r>${diffTxt(p)}</td><td data-r>${p.n}</td>${$('sp-ly').checked ? `<td data-r>${yoyHTML(yoyPct(p.client, p.clientLY), false, true)}</td><td data-r>${yoyHTML(yoyPct(p.avg, p.avgLY), false, true)}</td>` : ''}</tr>`).join('') + '</tbody></table></div>';
 }
 
 // ── Industry overview
@@ -1773,9 +1853,7 @@ function mbChannel(){ return $('mb-channel').value; }
 function mbPlat(){ const c = mbChannel(); return c === 'META' ? 'meta' : c === 'ALL' ? 'all' : 'google'; }
 function mbIsMix(){ const c = mbChannel(); return c === 'ALL' || c === 'G_ALL'; }
 function mbMetaData(){
-  const { since, until } = mbPeriod();
-  const key = `mb_bench_v2_${since}_${until}_${CONFIG.ATTRIBUTION.join('+')}`;
-  return META_MEMO[key]?.data || null;
+  return histData();
 }
 function mbData(){ const p = mbPlat(); return p === 'meta' ? mbMetaData() : p === 'google' ? (GD.data || null) : (mbMetaData() || GD.data || null); }
 function mbRowsFor(a){ return a.platform === 'meta' ? (mbMetaData() || {})[a.id] : (GD.data || {})[a.id]; }
@@ -1977,9 +2055,13 @@ function renderOverview(rebuild = true){
 
   // Period summary: market × metric across the whole period
   let h = `<thead><tr><th>Market</th><th data-r>Clients</th>${BMETRICS.map(m => `<th data-r>${esc(mLabelFor(m, plat))}</th>`).join('')}</tr></thead><tbody>`;
+  // All channels: last year must cover every source in use, or the YoY would compare different channel mixes
+  const lyM = lyMonths(months), lyOk = plat === 'all' ? (!mbMetaData() || hasMonths(lyM, 'meta')) && (!GD.data || hasMonths(lyM, 'google')) && !!(mbMetaData() || GD.data) : hasMonths(lyM, plat);
   markets.forEach(mk => {
-    const units = mbUnits(mk, null, months);
-    const cells = BMETRICS.map(m => { const st = stats(units, m, false); return `<td data-r>${st.n >= CONFIG.MIN_CLIENTS ? m.f(st.avg) : `<span class="hint">${st.n ? 'too few' : '—'}</span>`}</td>`; }).join('');
+    const units = mbUnits(mk, null, months), unitsLY = lyOk ? mbUnits(mk, null, lyM) : [];
+    const cells = BMETRICS.map(m => { const st = stats(units, m, false), sl = stats(unitsLY, m, false);
+      const d = st.n >= CONFIG.MIN_CLIENTS && sl.n >= CONFIG.MIN_CLIENTS ? yoyPct(st.avg, sl.avg) : null;
+      return `<td data-r>${st.n >= CONFIG.MIN_CLIENTS ? m.f(st.avg) + (lyOk ? `<div class="hint">${d == null ? 'YoY —' : yoyHTML(d, m.lower) + ' YoY'}</div>` : '') : `<span class="hint">${st.n ? 'too few' : '—'}</span>`}</td>`; }).join('');
     h += `<tr><td>${flagFor(mk)} ${esc(mk)}</td><td data-r>${units.filter(u => u.spend >= CONFIG.MIN_SPEND_GBP).length}</td>${cells}</tr>`;
   });
   $('mb-table').innerHTML = h + '</tbody>';
@@ -2522,6 +2604,7 @@ function renderSetup(){
 async function boot(reload = false){
   setStatus('<div class="dot-loader"><span></span><span></span><span></span></div> Loading lookup sheet…');
   S.error = null;
+  try { await histInit(); } catch(e) { console.warn('History cache unavailable', e); }
   try { await loadGoogle(); } catch(e) { GD.error = 'Could not read the Google file: ' + e.message; }
   try { await loadSheet(); }
   catch(e) {
